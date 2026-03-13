@@ -69,7 +69,27 @@ Inside VS Code, open a new terminal (**Terminal > New Terminal** from the very t
 
 ---
 
-## 🔑 Step 4: Set Up Your Secret Keys (.env files)
+## 🗄️ Step 4: Set Up Databases (MongoDB & Redis)
+
+Before starting the app, we need to set up free databases to save your data.
+
+### 1. MongoDB (Main Database)
+MongoDB is where all user data and AI chats are saved.
+1. Go to [MongoDB Atlas](https://www.mongodb.com/atlas/database) and sign up for a free account.
+2. Create a new "M0 Free" cluster.
+3. Under **Database Access**, create a database user (remember the password you set!).
+4. Under **Network Access**, add the IP address `0.0.0.0/0` so your app can connect from anywhere.
+5. Click **Database** on the left menu, then click **Connect**, select **Drivers**, and copy your **Connection String** (it looks like `mongodb+srv://...`). Save this for Step 5!
+
+### 2. Redis (Cache Database)
+Redis stores temporary data to make the AI responses much faster. Installing it on your computer can be tricky, so we will use a free cloud Redis provider called Upstash.
+1. Go to [Upstash](https://upstash.com/) and sign up for a free account.
+2. Click **Create Database** under the Redis section and name it "personaforge" (leave other settings as default).
+3. Once created, scroll down to the **Connection** section in your dashboard and copy the **Redis URL** (it usually looks like `rediss://...`). Save this for Step 5!
+
+---
+
+## 🔑 Step 5: Set Up Your Secret Keys (.env files)
 
 The app needs certain keys (like passwords and API keys) to work. We keep these hidden in files called `.env`.
 
@@ -80,7 +100,8 @@ The app needs certain keys (like passwords and API keys) to work. We keep these 
 4. Open it and paste the following text inside:
 
 ```env
-# 1. MongoDB Database URL (Get a free database at https://www.mongodb.com/atlas)
+# 1. MongoDB Database URL (Paste your Connection String from Step 4 here)
+# Make sure to replace <username> and <password> with the database user you created!
 MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/personaforge?retryWrites=true&w=majority
 
 # 2. Security Keys (You can just type random letters/numbers for these two)
@@ -106,7 +127,7 @@ GROQ_API_KEY=your_groq_api_key
 # The same Groq AI key you used above
 GROQ_API_KEY=your_groq_api_key
 
-# Redis connection (Optional but recommended for speed)
+# Redis connection (Paste your Upstash URL from Step 4 here, e.g., rediss://...)
 REDIS_URL=redis://localhost:6379
 
 # The port the backend will run on
@@ -115,7 +136,7 @@ PORT=8000
 
 ---
 
-## 🏃 Step 5: Start the App!
+## 🏃 Step 6: Start the App!
 
 You are almost there! Now we just need to start the servers.
 
