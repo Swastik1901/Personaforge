@@ -112,6 +112,30 @@ export default function DashboardPage() {
     }
   }, [user, loading, router])
 
+  const handleTestAgent = (agent: any) => {
+    const config = {
+      name: agent.name,
+      tone: agent.tone || "Friendly",
+      expertise: agent.expertise || "General",
+      description: agent.systemPrompt || agent.description,
+      guardrails: agent.guardrails || ["stayOnTopic", "noHarmfulContent"]
+    }
+    localStorage.setItem('personaforge_pending_config', JSON.stringify(config))
+    router.push('/sandbox')
+  }
+
+  const handleDeployAgent = (agent: any) => {
+    const config = {
+      name: agent.name,
+      tone: agent.tone || "Friendly",
+      expertise: agent.expertise || "General",
+      description: agent.systemPrompt || agent.description,
+      guardrails: agent.guardrails || ["stayOnTopic", "noHarmfulContent"]
+    }
+    localStorage.setItem('personaforge_deploy_config', JSON.stringify(config))
+    router.push('/deploy')
+  }
+
   // Show loading while checking auth
   if (loading) {
     return (
@@ -138,30 +162,46 @@ export default function DashboardPage() {
     {
       name: "Startup Mentor AI",
       description: "Helps founders validate ideas and build startups",
+      systemPrompt: "You are an AI startup mentor. Give advice on startups.",
       memory: "Session",
       updated: "2 hours ago",
-      color: "#5CC8FF"
+      color: "#5CC8FF",
+      tone: "Friendly & Supportive",
+      expertise: "Startup Advice",
+      guardrails: ["stayOnTopic", "noHarmfulContent", "jailbreakResistance"]
     },
     {
       name: "Coding Tutor",
       description: "Teaches beginners programming concepts",
+      systemPrompt: "You are a patient and expert coding tutor. Explain programming concepts clearly, using simple examples.",
       memory: "Persistent",
       updated: "1 day ago",
-      color: "#86EFAC"
+      color: "#86EFAC",
+      tone: "Patient & Educational",
+      expertise: "Programming",
+      guardrails: ["stayOnTopic", "noHarmfulContent"]
     },
     {
       name: "Customer Support",
       description: "Handles customer inquiries and support tickets",
+      systemPrompt: "You are a professional customer support representative. Answer customer questions politely.",
       memory: "Stateless",
       updated: "3 days ago",
-      color: "#FF9AA2"
+      color: "#FF9AA2",
+      tone: "Professional & Empathetic",
+      expertise: "Customer Service",
+      guardrails: ["stayOnTopic", "noHarmfulContent", "respectUserPrivacy"]
     },
     {
       name: "Content Writer",
       description: "Generates blog posts and marketing content",
+      systemPrompt: "You are an expert content writer. Generate engaging, SEO-friendly marketing content.",
       memory: "Session",
       updated: "5 days ago",
-      color: "#C4B5FD"
+      color: "#C4B5FD",
+      tone: "Creative & Persuasive",
+      expertise: "Content Creation",
+      guardrails: ["stayOnTopic", "noHarmfulContent"]
     }
   ]
 
@@ -406,11 +446,11 @@ export default function DashboardPage() {
                         <Edit className="w-4 h-4 mr-2" />
                         Edit
                       </Button>
-                      <Button variant="outline" size="sm" className="flex-1" onClick={() => router.push('/sandbox')}>
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => handleTestAgent(agent)}>
                         <Play className="w-4 h-4 mr-2" />
                         Test
                       </Button>
-                      <Button size="sm" className="flex-1" onClick={() => router.push('/deploy')}>
+                      <Button size="sm" className="flex-1" onClick={() => handleDeployAgent(agent)}>
                         <Rocket className="w-4 h-4 mr-2" />
                         Deploy
                       </Button>

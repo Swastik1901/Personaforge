@@ -21,6 +21,8 @@ import {
   ChevronRight
 } from "lucide-react"
 
+import { useRouter } from "next/navigation"
+
 function cn(...classes: (string | undefined | null | boolean)[]): string {
   return classes.filter(Boolean).join(" ")
 }
@@ -102,28 +104,35 @@ export default function DeployPage() {
   const [deployAgentId, setDeployAgentId] = useState("")
   const [deployApiKey, setDeployApiKey] = useState("")
   const [config, setConfig] = useState({
-    name: "Startup Mentor AI",
-    tone: "Friendly & Supportive",
-    expertise: "Startup Advice",
-    description: "You are an AI startup mentor. Give advice on startups.",
-    guardrails: ["stayOnTopic", "noHarmfulContent", "jailbreakResistance"]
+    name: "AI Assistant",
+    tone: "Friendly",
+    expertise: "General Support",
+    description: "You are a helpful AI assistant.",
+    guardrails: ["stayOnTopic", "noHarmfulContent"]
   })
 
+  const router = useRouter()
+
   React.useEffect(() => {
-    const pendingConfig = localStorage.getItem('personaforge_pending_config')
-    if (pendingConfig) {
+    setIsDeployed(false)
+    setIsDeploying(false)
+    setDeployAgentId("")
+    setDeployApiKey("")
+    
+    const deployConfig = localStorage.getItem('personaforge_deploy_config')
+    if (deployConfig) {
       try {
-        const parsed = JSON.parse(pendingConfig)
+        const parsed = JSON.parse(deployConfig)
         setConfig(parsed)
       } catch (e) {
-        console.error("Failed to parse pending config", e)
+        console.error("Failed to parse deploy config", e)
       }
     }
   }, [])
 
   const slug = config.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || "startup-mentor"
   const finalAgentId = deployAgentId || slug
-  const agentUrl = `https://personaforge.ai/agent/${finalAgentId}`
+  const agentUrl = `http://localhost:3000/sandbox`
   const apiEndpoint = `http://localhost:8000/v1/${finalAgentId}/chat`
   const finalApiKey = deployApiKey || "pf_live_a8f9d2c1b3e4567890abcdef"
   const widgetCode = `<script src="https://cdn.personaforge.ai/widget.js"></script>
@@ -138,6 +147,11 @@ PersonaForge.init({
     navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleOpenSandbox = () => {
+    localStorage.setItem('personaforge_pending_config', JSON.stringify(config))
+    router.push('/sandbox')
   }
 
   const handleDeploy = async () => {
@@ -234,7 +248,7 @@ PersonaForge.init({
             <div className="flex items-start justify-between mb-6">
               <div>
                 <h2 className="text-3xl font-black mb-2">Agent Ready for Deployment</h2>
-                <p className="text-lg text-gray-600">Your AI agent has been tested and is ready to go live</p>
+                <p className="text-lg text-gray-600">{config.name} has been tested and is ready to go live</p>
               </div>
               <div className="flex flex-col gap-2">
                 <div className="px-4 py-2 bg-[#86EFAC] border-[3px] border-black rounded-lg font-bold text-sm flex items-center gap-2">
@@ -463,8 +477,8 @@ Content-Type: application/json
                     <CheckCircle className="w-12 h-12 text-[#86EFAC]" />
                   </motion.div>
 
-                  <h3 className="text-3xl font-black mb-3">Agent Successfully Deployed! </h3>
-                  <p className="text-lg mb-8 font-medium">Your AI agent is now live and ready to use</p>
+                  <h3 className="text-3xl font-black mb-3">{config.name} Successfully Deployed! </h3>
+                  <p className="text-lg mb-8 font-medium">Your agent is now live and ready to use</p>
 
                   <div className="space-y-4 text-left max-w-2xl mx-auto">
                     <div>
@@ -493,11 +507,11 @@ Content-Type: application/json
                     )}
 
                     <div className="grid grid-cols-2 gap-3 pt-4">
-                      <Button variant="outline" className="w-full">
+                      <Button variant="outline" className="w-full" onClick={handleOpenSandbox}>
                         <ExternalLink className="w-4 h-4 mr-2" />
                         Open Agent
                       </Button>
-                      <Button variant="outline" className="w-full">
+                      <Button variant="outline" className="w-full" onClick={handleOpenSandbox}>
                         <Settings className="w-4 h-4 mr-2" />
                         View Logs
                       </Button>

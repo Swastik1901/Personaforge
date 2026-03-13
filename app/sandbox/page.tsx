@@ -3,6 +3,8 @@
 import * as React from "react"
 import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   ArrowLeft,
   Send,
@@ -120,11 +122,11 @@ export default function SandboxPage() {
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
 
   const [config, setConfig] = useState({
-    name: "Startup Mentor AI",
-    tone: "Friendly & Supportive",
-    expertise: "Startup Advice",
-    description: "You are an AI startup mentor. Give advice on startups.",
-    guardrails: ["stayOnTopic", "noHarmfulContent", "jailbreakResistance"]
+    name: "AI Assistant",
+    tone: "Friendly",
+    expertise: "General Support",
+    description: "You are a helpful AI assistant.",
+    guardrails: ["stayOnTopic", "noHarmfulContent"]
   })
   const [isEditingConfig, setIsEditingConfig] = useState(false)
   const [editConfigForm, setEditConfigForm] = useState(config)
@@ -141,7 +143,7 @@ export default function SandboxPage() {
         setConfig(parsed)
         setEditConfigForm(parsed)
         loadedConfig = parsed
-        localStorage.removeItem('personaforge_pending_config')
+        // keep pending config in localStorage so it persists on reload
       } catch (e) {
         console.error("Failed to parse pending config", e)
       }
@@ -418,7 +420,7 @@ export default function SandboxPage() {
         <main className="flex-1 flex flex-col bg-[#FFF4E2]">
           <div className="border-b-[3px] border-black p-4 bg-[#FDF3B1]">
             <h2 className="text-2xl font-black">Sandbox Chat</h2>
-            <p className="text-sm text-gray-600">Test your AI agent's responses</p>
+            <p className="text-sm text-gray-600">Test {config.name}'s responses</p>
           </div>
 
           {/* Messages Area */}
@@ -444,9 +446,26 @@ export default function SandboxPage() {
                     )}
                   >
                     <div className="text-xs font-bold mb-1 text-gray-600">
-                      {message.type === "user" ? "You" : "AI Agent"}
+                      {message.type === "user" ? "You" : config.name}
                     </div>
-                    <p className="font-medium">{message.content}</p>
+                    <div className="font-medium text-sm space-y-2 whitespace-pre-wrap">
+                      {message.type === "ai" ? (
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            ul: ({node, ...props}) => <ul className="list-disc pl-5 my-2" {...props} />,
+                            ol: ({node, ...props}) => <ol className="list-decimal pl-5 my-2" {...props} />,
+                            li: ({node, ...props}) => <li className="mb-1 marker:text-black marker:font-bold" {...props} />,
+                            p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+                            strong: ({node, ...props}) => <strong className="font-black" {...props} />
+                          }}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                      ) : (
+                        <p>{message.content}</p>
+                      )}
+                    </div>
                     <div className="text-xs text-gray-500 mt-2">{mounted ? message.timestamp : ""}</div>
                   </div>
                 </motion.div>
@@ -487,7 +506,7 @@ export default function SandboxPage() {
           <div className="border-t-[3px] border-black p-4 bg-[#FDF3B1]">
             <div className="flex gap-2">
               <Input
-                placeholder="Ask your AI agent something..."
+                placeholder={`Ask ${config.name} something...`}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && handleSend()}
