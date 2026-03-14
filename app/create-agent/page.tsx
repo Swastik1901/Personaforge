@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ArrowLeft, Sparkles, TestTube, Save, Rocket, Database, Shield, MessageSquare } from "lucide-react"
+import { ArrowLeft, Sparkles, TestTube, Save, Rocket, Database, Shield, MessageSquare, Zap } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useRouter } from "next/navigation"
 
@@ -68,6 +68,7 @@ export default function CreateAgentPage() {
   const [memoryMode, setMemoryMode] = useState("session")
   const [responseLength, setResponseLength] = useState("medium")
   const [safetyFilters, setSafetyFilters] = useState(true)
+  const [selectedTools, setSelectedTools] = useState<string[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState("")
   
@@ -139,18 +140,23 @@ export default function CreateAgentPage() {
   }
 
   const handleSaveAgent = async () => {
-    if (!agentConfig || !token) return
+    if (!agentConfig) return
     
     setIsSaving(true)
     setSaveError("")
     
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      }
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
       const response = await fetch('/api/agents', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers,
         body: JSON.stringify({
           name: agentConfig.agentName || agentConfig.domain + " Agent",
           description: description,
@@ -159,6 +165,7 @@ export default function CreateAgentPage() {
           domain: agentConfig.domain,
           responseStyle: agentConfig.responseStyle,
           guardrails: agentConfig.guardrails,
+          tools: selectedTools,
           memoryMode,
           responseLength,
           safetyFilters
@@ -186,7 +193,8 @@ export default function CreateAgentPage() {
         tone: agentConfig.tone,
         expertise: agentConfig.domain,
         description: agentConfig.systemPrompt,
-        guardrails: safetyFilters ? agentConfig.guardrails : []
+        guardrails: safetyFilters ? agentConfig.guardrails : [],
+        tools: selectedTools
       }))
     }
     router.push(path)
@@ -404,6 +412,49 @@ export default function CreateAgentPage() {
                     <div className={cn("absolute top-0.5 w-3 h-3 bg-white border-[2px] border-black rounded-full transition-all", safetyFilters ? "right-0.5" : "left-0.5")} />
                   </div>
                 </button>
+              </div>
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap className="w-4 h-4" />
+                  <h3 className="text-sm font-black">Agent Tools</h3>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    "Web Search",
+                    "Visit URL",
+                    "Read File",
+                    "Send Email",
+                    "Google Calendar",
+                    "AWS MCP Docs"
+                  ].map((tool) => (
+                    <button
+                      key={tool}
+                      onClick={() => {
+                        if (selectedTools.includes(tool)) {
+                          setSelectedTools(selectedTools.filter(t => t !== tool))
+                        } else {
+                          setSelectedTools([...selectedTools, tool])
+                        }
+                      }}
+                      className={cn(
+                        "w-full p-3 border-[3px] border-black rounded-lg font-bold flex items-center justify-between transition-all",
+                        selectedTools.includes(tool) ? "bg-[#FFD84D]" : "bg-white hover:bg-gray-50"
+                      )}
+                    >
+                      <span className="text-sm text-black">{tool}</span>
+                      <div className={cn(
+                        "w-5 h-5 rounded-md border-[2px] border-black flex items-center justify-center transition-all",
+                        selectedTools.includes(tool) ? "bg-black" : "bg-white"
+                      )}>
+                        {selectedTools.includes(tool) && (
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </Card>
             <Card className="bg-[#5CC8FF]">

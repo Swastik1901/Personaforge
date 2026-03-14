@@ -10,7 +10,7 @@ const router = Router();
 router.post('/:agentId/chat', async (req, res) => {
     try {
         const { agentId } = req.params;
-        const { message, session_id } = req.body;
+        const { message, session_id, smtpConfig } = req.body;
 
         if (!message || !session_id) {
             return res.status(400).json({ error: "message and session_id are required" });
@@ -31,8 +31,8 @@ router.post('/:agentId/chat', async (req, res) => {
         }
 
         // 3. Build format and query Claude
-        const fullSystemPrompt = buildSystemPrompt(agent.systemPrompt, agent.guardrails);
-        const reply = await chatWithPersona(fullSystemPrompt, history, message);
+        const fullSystemPrompt = buildSystemPrompt(agent.systemPrompt, agent.guardrails, agent.domain);
+        const reply = await chatWithPersona(fullSystemPrompt, history, message, agent.tools, smtpConfig);
 
         // 4. Output Guardrail
         const outputCheck = await runGuardrails(message, reply, agent.domain, agent.guardrails);

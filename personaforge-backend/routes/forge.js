@@ -7,13 +7,26 @@ const router = Router();
 
 router.post('/', async (req, res) => {
     try {
-        const { description, tone, guardrails, memory } = req.body;
+        const { description, tone, guardrails, memory, tools, name, expertise } = req.body;
+        console.log("[FORGE] Incoming payload:", req.body);
         
         if (!description || typeof description !== 'string') {
             return res.status(400).json({ error: "description is required and must not be empty" });
         }
         
-        const config = await forgePersona(description, tone, guardrails);
+        // Try calling the AI to generate a persona config; fall back to raw input on error
+        let config;
+        try {
+            config = await forgePersona(description, tone, guardrails);
+        } catch (aiError) {
+            console.warn("[FORGE] AI call failed (likely rate limit), using fallback config:", aiError.message || aiError);
+            config = {
+                name: name || "AI Assistant",
+                systemPrompt: description,
+                domain: expertise || "general",
+                sampleReply: "I'm ready to help!"
+            };
+        }
         
         const agentId = crypto.randomUUID();
         const apiKeyChars = crypto.randomUUID().replace(/-/g, "").slice(0, 20);
@@ -27,7 +40,8 @@ router.post('/', async (req, res) => {
             domain: config.domain,
             sampleReply: config.sampleReply,
             guardrails: guardrails || [],
-            memory: memory !== false // Default true, or store exactly what was sent
+            tools: tools || [],
+            memory: memory !== false
         };
         
         agentsDb.set(agentId, agentRecord);

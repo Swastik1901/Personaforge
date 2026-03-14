@@ -24,7 +24,16 @@ export function verifyToken(token: string): any {
   try {
     return jwt.verify(token, JWT_SECRET)
   } catch (error) {
-    throw new Error('Invalid token')
+    try {
+      // Try with NextAuth secret as fallback
+      const nextAuthSecret = process.env.NEXTAUTH_SECRET
+      if (nextAuthSecret) {
+        return jwt.verify(token, nextAuthSecret)
+      }
+      throw error
+    } catch (e) {
+      throw new Error('Invalid token')
+    }
   }
 }
 

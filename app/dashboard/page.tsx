@@ -101,22 +101,52 @@ export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeNav, setActiveNav] = useState("dashboard")
   const [searchQuery, setSearchQuery] = useState("")
+
+  const [agents, setAgents] = useState<any[]>([])
+  const [isLoadingAgents, setIsLoadingAgents] = useState(true)
+
+  // Calculate global stats from real data
+  const totalDeployments = agents.filter(a => a.isDeployed).length
+  const totalApiCalls = agents.reduce((sum, a) => sum + (a.totalApiCalls || 0), 0)
+  const totalSandboxTests = agents.reduce((sum, a) => sum + (a.testCount || 0), 0)
   
-  const { user, logout, loading } = useAuth()
+  const { user, token, logout, loading } = useAuth()
   const router = useRouter()
 
-  // Redirect if not logged in
+  // Fetch agents
   useEffect(() => {
-    if (!loading && !user) {
+    const fetchAgents = async () => {
+      try {
+        const headers: Record<string, string> = {}
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+
+        const response = await fetch('/api/agents', { headers })
+        const data = await response.json()
+        if (response.ok) {
+          setAgents(data.agents || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch agents:', error)
+      } finally {
+        setIsLoadingAgents(false)
+      }
+    }
+
+    if (user) {
+      fetchAgents()
+    } else if (!loading && !user) {
       router.push('/login')
     }
-  }, [user, loading, router])
+  }, [user, token, loading, router])
 
   const handleTestAgent = (agent: any) => {
     const config = {
+      id: agent._id || agent.id,
       name: agent.name,
       tone: agent.tone || "Friendly",
-      expertise: agent.expertise || "General",
+      expertise: agent.domain || "General",
       description: agent.systemPrompt || agent.description,
       guardrails: agent.guardrails || ["stayOnTopic", "noHarmfulContent"]
     }
@@ -126,9 +156,10 @@ export default function DashboardPage() {
 
   const handleDeployAgent = (agent: any) => {
     const config = {
+      id: agent._id || agent.id,
       name: agent.name,
       tone: agent.tone || "Friendly",
-      expertise: agent.expertise || "General",
+      expertise: agent.domain || "General",
       description: agent.systemPrompt || agent.description,
       guardrails: agent.guardrails || ["stayOnTopic", "noHarmfulContent"]
     }
@@ -158,66 +189,23 @@ export default function DashboardPage() {
     { id: "settings", label: "Settings", icon: <Settings className="w-5 h-5" />, href: "/settings" },
   ]
 
-  const agents = [
-    {
-      name: "Startup Mentor AI",
-      description: "Helps founders validate ideas and build startups",
-      systemPrompt: "You are an AI startup mentor. Give advice on startups.",
-      memory: "Session",
-      updated: "2 hours ago",
-      color: "#5CC8FF",
-      tone: "Friendly & Supportive",
-      expertise: "Startup Advice",
-      guardrails: ["stayOnTopic", "noHarmfulContent", "jailbreakResistance"]
-    },
-    {
-      name: "Coding Tutor",
-      description: "Teaches beginners programming concepts",
-      systemPrompt: "You are a patient and expert coding tutor. Explain programming concepts clearly, using simple examples.",
-      memory: "Persistent",
-      updated: "1 day ago",
-      color: "#86EFAC",
-      tone: "Patient & Educational",
-      expertise: "Programming",
-      guardrails: ["stayOnTopic", "noHarmfulContent"]
-    },
-    {
-      name: "Customer Support",
-      description: "Handles customer inquiries and support tickets",
-      systemPrompt: "You are a professional customer support representative. Answer customer questions politely.",
-      memory: "Stateless",
-      updated: "3 days ago",
-      color: "#FF9AA2",
-      tone: "Professional & Empathetic",
-      expertise: "Customer Service",
-      guardrails: ["stayOnTopic", "noHarmfulContent", "respectUserPrivacy"]
-    },
-    {
-      name: "Content Writer",
-      description: "Generates blog posts and marketing content",
-      systemPrompt: "You are an expert content writer. Generate engaging, SEO-friendly marketing content.",
-      memory: "Session",
-      updated: "5 days ago",
-      color: "#C4B5FD",
-      tone: "Creative & Persuasive",
-      expertise: "Content Creation",
-      guardrails: ["stayOnTopic", "noHarmfulContent"]
-    }
-  ]
-
   const stats = [
-    { label: "Active Agents", value: "4", icon: <Bot className="w-6 h-6" />, color: "#5CC8FF" },
-    { label: "Total Deployments", value: "12", icon: <Rocket className="w-6 h-6" />, color: "#86EFAC" },
-    { label: "API Calls Today", value: "1.2K", icon: <Zap className="w-6 h-6" />, color: "#FF9AA2" },
-    { label: "Sandbox Tests", value: "28", icon: <TestTube className="w-6 h-6" />, color: "#C4B5FD" }
+    { label: "Active Agents", value: agents.length.toString(), icon: <Bot className="w-6 h-6" />, color: "#5CC8FF" },
+    { label: "Total Deployments", value: totalDeployments.toString(), icon: <Rocket className="w-6 h-6" />, color: "#86EFAC" },
+    { label: "API Calls Today", value: totalApiCalls.toString(), icon: <Zap className="w-6 h-6" />, color: "#FF9AA2" },
+    { label: "Sandbox Tests", value: totalSandboxTests.toString(), icon: <TestTube className="w-6 h-6" />, color: "#C4B5FD" }
   ]
 
-  const recentActivity = [
-    { action: "Agent 'Startup Mentor' deployed to API", time: "2 hours ago", icon: <Rocket className="w-4 h-4" /> },
-    { action: "Agent 'Coding Tutor' tested in sandbox", time: "5 hours ago", icon: <TestTube className="w-4 h-4" /> },
-    { action: "Agent 'Customer Support AI' updated", time: "1 day ago", icon: <Edit className="w-4 h-4" /> },
-    { action: "New agent 'Content Writer' created", time: "3 days ago", icon: <Sparkles className="w-4 h-4" /> }
-  ]
+  const recentActivity = agents.slice(0, 4).map(agent => ({
+    action: `New agent '${agent.name}' created`,
+    time: new Date(agent.createdAt).toLocaleDateString(),
+    icon: <Sparkles className="w-4 h-4" />
+  }))
+
+  const getAgentColor = (index: number) => {
+    const colors = ["#5CC8FF", "#86EFAC", "#FF9AA2", "#C4B5FD"]
+    return colors[index % colors.length]
+  }
 
   return (
     <div className="h-screen bg-[#FDF3B1] overflow-hidden flex">
@@ -410,54 +398,70 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
-              {agents.filter(a => a.name.toLowerCase().includes(searchQuery.toLowerCase()) || a.description.toLowerCase().includes(searchQuery.toLowerCase())).map((agent, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.8 + index * 0.1 }}
-                >
-                  <Card className="hover:translate-y-[-2px] transition-transform">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="text-xl font-black mb-2">{agent.name}</h3>
-                        <p className="text-sm text-gray-600 mb-3">{agent.description}</p>
+              {isLoadingAgents ? (
+                <div className="col-span-2 py-20 text-center">
+                  <div className="text-xl font-bold">Loading your agents...</div>
+                </div>
+              ) : agents.length === 0 ? (
+                <Card className="col-span-2 py-20 text-center bg-white/50">
+                  <Bot className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                  <h3 className="text-xl font-black mb-2">No agents found</h3>
+                  <p className="text-gray-600 mb-6">Create your first AI agent to see it here!</p>
+                  <Button onClick={() => router.push('/create-agent')}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Agent
+                  </Button>
+                </Card>
+              ) : (
+                agents.filter(a => a.name.toLowerCase().includes(searchQuery.toLowerCase()) || a.description.toLowerCase().includes(searchQuery.toLowerCase())).map((agent, index) => (
+                  <motion.div
+                    key={agent.id || index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 * index }}
+                  >
+                    <Card className="hover:translate-y-[-2px] transition-transform h-full flex flex-col">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <h3 className="text-xl font-black mb-2">{agent.name}</h3>
+                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">{agent.description}</p>
+                        </div>
+                        <div
+                          className="w-3 h-3 rounded-full border-[3px] border-black flex-shrink-0 ml-2"
+                          style={{ backgroundColor: getAgentColor(index) }}
+                        ></div>
                       </div>
-                      <div
-                        className="w-3 h-3 rounded-full border-[3px] border-black"
-                        style={{ backgroundColor: agent.color }}
-                      ></div>
-                    </div>
 
-                    <div className="flex items-center gap-4 mb-4 text-sm">
-                      <div className="flex items-center gap-1">
-                        <Activity className="w-4 h-4" />
-                        <span className="font-bold">Memory:</span>
-                        <span>{agent.memory}</span>
+                      <div className="flex items-center gap-4 mb-4 text-sm mt-auto">
+                        <div className="flex items-center gap-1">
+                          <Activity className="w-4 h-4" />
+                          <span className="font-bold">Memory:</span>
+                          <span className="capitalize">{agent.memoryMode || 'Session'}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          <span>{new Date(agent.createdAt).toLocaleDateString()}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        <span>{agent.updated}</span>
-                      </div>
-                    </div>
 
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1" onClick={() => router.push('/create-agent')}>
-                        <Edit className="w-4 h-4 mr-2" />
-                        Edit
-                      </Button>
-                      <Button variant="outline" size="sm" className="flex-1" onClick={() => handleTestAgent(agent)}>
-                        <Play className="w-4 h-4 mr-2" />
-                        Test
-                      </Button>
-                      <Button size="sm" className="flex-1" onClick={() => handleDeployAgent(agent)}>
-                        <Rocket className="w-4 h-4 mr-2" />
-                        Deploy
-                      </Button>
-                    </div>
-                  </Card>
-                </motion.div>
-              ))}
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" className="flex-1" onClick={() => router.push('/create-agent')}>
+                          <Edit className="w-4 h-4 mr-2" />
+                          Edit
+                        </Button>
+                        <Button variant="outline" size="sm" className="flex-1" onClick={() => handleTestAgent(agent)}>
+                          <Play className="w-4 h-4 mr-2" />
+                          Test
+                        </Button>
+                        <Button size="sm" className="flex-1" onClick={() => handleDeployAgent(agent)}>
+                          <Rocket className="w-4 h-4 mr-2" />
+                          Deploy
+                        </Button>
+                      </div>
+                    </Card>
+                  </motion.div>
+                ))
+              )}
             </div>
           </div>
 

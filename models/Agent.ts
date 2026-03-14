@@ -9,6 +9,7 @@ export interface IAgent extends Document {
   domain: string
   responseStyle: string
   guardrails: string[]
+  tools: string[]
   memoryMode: 'stateless' | 'session' | 'persistent'
   responseLength: 'short' | 'medium' | 'long'
   safetyFilters: boolean
@@ -18,6 +19,7 @@ export interface IAgent extends Document {
   updatedAt: Date
   lastTested?: Date
   testCount: number
+  totalApiCalls: number
 }
 
 const AgentSchema = new Schema<IAgent>({
@@ -62,6 +64,10 @@ const AgentSchema = new Schema<IAgent>({
     type: String,
     maxlength: [100, 'Each guardrail cannot exceed 100 characters']
   }],
+  tools: [{
+    type: String,
+    maxlength: [100, 'Each tool cannot exceed 100 characters']
+  }],
   memoryMode: {
     type: String,
     enum: ['stateless', 'session', 'persistent'],
@@ -88,6 +94,10 @@ const AgentSchema = new Schema<IAgent>({
     type: Date
   },
   testCount: {
+    type: Number,
+    default: 0
+  },
+  totalApiCalls: {
     type: Number,
     default: 0
   }

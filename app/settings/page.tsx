@@ -1,311 +1,266 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
-import { ArrowLeft, Save, User, Bell, Shield, Key, X, Check, Zap } from "lucide-react"
-import { useAuth } from "../../contexts/AuthContext"
-import { motion, AnimatePresence } from "framer-motion"
+import { useState, useEffect } from "react"
+import { motion } from "framer-motion"
+import { ArrowLeft, Save, Mail, Server, Shield, Lock, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
+import { useAuth } from "@/contexts/AuthContext"
+import { useRouter } from "next/navigation"
 
 function cn(...classes: (string | undefined | null | boolean)[]): string {
   return classes.filter(Boolean).join(" ")
 }
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "default" | "outline" | "ghost"
-  size?: "default" | "sm" | "lg"
-}
-
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "default" | "outline"; size?: "default" | "sm" }>(
   ({ className, variant = "default", size = "default", ...props }, ref) => {
     const baseStyles = "inline-flex items-center justify-center font-bold rounded-lg transition-all duration-200 border-[3px] border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none active:translate-x-[4px] active:translate-y-[4px] active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed"
-    
     const variants = {
       default: "bg-[#FF7A00] text-white hover:bg-[#E66D00]",
       outline: "bg-[#FFF4E2] text-black hover:bg-gray-50",
-      ghost: "bg-transparent border-transparent shadow-none hover:bg-gray-100 hover:shadow-none"
     }
-    
     const sizes = {
       default: "px-6 py-3 text-base",
       sm: "px-4 py-2 text-sm",
-      lg: "px-8 py-4 text-lg"
     }
-    
-    return (
-      <button
-        ref={ref}
-        className={cn(baseStyles, variants[variant], sizes[size], className)}
-        {...props}
-      />
-    )
+    return <button ref={ref} className={cn(baseStyles, variants[variant], sizes[size], className)} {...props} />
   }
 )
 Button.displayName = "Button"
 
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div
+    <div ref={ref} className={cn("bg-[#FFF4E2] border-[3px] border-black rounded-xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-8", className)} {...props} />
+  )
+)
+Card.displayName = "Card"
+
+const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+  ({ className, ...props }, ref) => (
+    <input
       ref={ref}
       className={cn(
-        "bg-[#FFF4E2] border-[3px] border-black rounded-xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-6",
+        "w-full bg-white border-[3px] border-black rounded-lg px-4 py-3 font-medium focus:outline-none focus:ring-2 focus:ring-[#FF7A00] transition-all",
         className
       )}
       {...props}
     />
   )
 )
-Card.displayName = "Card"
+Input.displayName = "Input"
 
 export default function SettingsPage() {
-  const { user } = useAuth()
+  const { user, token, loading: authLoading } = useAuth()
+  const router = useRouter()
   
-  // Profile State
+  const [smtpConfig, setSmtpConfig] = useState({
+    host: "",
+    port: 465,
+    user: "",
+    pass: ""
+  })
   const [isSaving, setIsSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  
-  // API Key State
-  const [isKeyRevealed, setIsKeyRevealed] = useState(false)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [apiKey, setApiKey] = useState("pf_live_a8f9d2c1b3e4567890abcdef")
-  
-  // Subscription State
-  const [localPlan, setLocalPlan] = useState(user?.plan || "free")
-  const [isUpgrading, setIsUpgrading] = useState(false)
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
-  React.useEffect(() => {
-    if (user?.plan) setLocalPlan(user.plan)
-  }, [user])
-
-  const handleSaveProfile = () => {
-    setIsSaving(true)
-    setTimeout(() => {
-      setIsSaving(false)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-    }, 800)
-  }
-
-  const handleGenerateKey = () => {
-    setIsGenerating(true)
-    setTimeout(() => {
-      const newKey = "pf_live_" + Array(24).fill(0).map(() => Math.random().toString(36)[2]).join('')
-      setApiKey(newKey)
-      setIsKeyRevealed(true)
-      setIsGenerating(false)
-    }, 1000)
-  }
-
-  const handleUpgradePlan = (planName: string) => {
-    setIsUpgrading(true)
-    setTimeout(() => {
-      setLocalPlan(planName)
-      setIsUpgrading(false)
-      setShowUpgradeModal(false)
-    }, 1500)
-  }
-
-  const pricingTiers = [
-    {
-      name: "Starter",
-      price: "Free",
-      features: ["1 Active Agent", "1,000 API Calls/mo", "Basic Guardrails", "Community Support"],
-      color: "#FFF4E2",
-      buttonColor: "bg-white",
-      value: "free"
-    },
-    {
-      name: "Pro",
-      price: "$29/mo",
-      features: ["10 Active Agents", "50,000 API Calls/mo", "Advanced Guardrails", "Email Support", "Custom Branding"],
-      color: "#5CC8FF",
-      buttonColor: "bg-[#FF7A00] text-white",
-      value: "pro",
-      popular: true
-    },
-    {
-      name: "Enterprise",
-      price: "Custom",
-      features: ["Unlimited Agents", "Unlimited API Calls", "Custom Guardrails", "24/7 Priority Support", "Dedicated Success Manager", "SLA Guarantee"],
-      color: "#C4B5FD",
-      buttonColor: "bg-white",
-      value: "enterprise"
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login')
     }
-  ]
+  }, [user, authLoading, router])
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login')
+      } else if (!token) {
+        // User is logged in but token isn't ready or missing, stop spinning
+        setIsLoading(false)
+      } else {
+        fetchSettings()
+      }
+    }
+  }, [user, authLoading, token])
+
+  const fetchSettings = async () => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 3000); // 3s timeout
+
+    try {
+      const res = await fetch('/api/user/settings', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        signal: controller.signal
+      })
+      clearTimeout(id);
+      const data = await res.json()
+      if (data.success) {
+        setSmtpConfig(data.smtpConfig)
+      }
+    } catch (error) {
+      console.error("Failed to fetch settings:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSaving(true)
+    setMessage(null)
+
+    try {
+      const res = await fetch('/api/user/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ smtpConfig })
+      })
+      
+      const data = await res.json()
+      if (data.success) {
+        setMessage({ type: "success", text: "Settings saved successfully!" })
+      } else {
+        setMessage({ type: "error", text: data.error || "Failed to save settings" })
+      }
+    } catch (error) {
+      setMessage({ type: "error", text: "An error occurred while saving." })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (authLoading || isLoading) {
+    return (
+      <div className="h-screen bg-[#FDF3B1] flex items-center justify-center">
+        <Loader2 className="w-12 h-12 text-[#FF7A00] animate-spin" />
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-[#FDF3B1] overflow-hidden flex flex-col">
-      <header className="bg-[#FFF4E2] border-b-[3px] border-black p-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <a href="/dashboard">
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Dashboard
-            </Button>
-          </a>
-          <h1 className="text-2xl font-black">Account Settings</h1>
+    <div className="min-h-screen bg-[#FDF3B1] p-4 md:p-8 font-mono">
+      <div className="max-w-3xl mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <button 
+            onClick={() => router.push('/dashboard')}
+            className="flex items-center gap-2 font-bold hover:underline group"
+          >
+            <ArrowLeft className="w-5 h-5 transition-transform group-hover:-translate-x-1" />
+            Back to Dashboard
+          </button>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-black italic uppercase tracking-tighter">Settings</h1>
+            <div className="bg-black text-white px-2 py-1 text-xs font-bold uppercase rotate-2">Beta</div>
+          </div>
         </div>
-      </header>
 
-      <main className="flex-1 overflow-y-auto p-8 max-w-4xl mx-auto w-full space-y-8">
-        <Card>
+        <Card className="mb-8">
           <div className="flex items-center gap-3 mb-6">
-            <User className="w-6 h-6" />
-            <h2 className="text-2xl font-black">Profile Information</h2>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold mb-2">Full Name</label>
-              <input 
-                type="text" 
-                defaultValue={user?.fullName || "Demo User"}
-                className="w-full px-4 py-3 border-[3px] border-black rounded-lg bg-white"
-                readOnly
-              />
+            <div className="p-3 bg-blue-100 rounded-lg border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+              <Mail className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <label className="block text-sm font-bold mb-2">Email Address</label>
-              <input 
-                type="email" 
-                defaultValue={user?.email || "demo@example.com"}
-                className="w-full px-4 py-3 border-[3px] border-black rounded-lg bg-white bg-gray-50 text-gray-500 cursor-not-allowed"
-                readOnly
+              <h2 className="text-xl font-black uppercase">Email Configuration</h2>
+              <p className="text-sm font-bold text-gray-600">Connect your personal SMTP for agent emails</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSave} className="space-y-6">
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-black uppercase flex items-center gap-2">
+                  <Server className="w-4 h-4" /> SMTP Host
+                </label>
+                <Input 
+                  placeholder="e.g. smtp.gmail.com"
+                  value={smtpConfig.host}
+                  onChange={(e) => setSmtpConfig({...smtpConfig, host: e.target.value})}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-black uppercase flex items-center gap-2">
+                  <Shield className="w-4 h-4" /> Port
+                </label>
+                <Input 
+                  type="number"
+                  placeholder="e.g. 465 or 587"
+                  value={smtpConfig.port}
+                  onChange={(e) => setSmtpConfig({...smtpConfig, port: parseInt(e.target.value)})}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-black uppercase flex items-center gap-2">
+                <Lock className="w-4 h-4" /> SMTP User (Email)
+              </label>
+              <Input 
+                type="email"
+                placeholder="your-email@example.com"
+                value={smtpConfig.user}
+                onChange={(e) => setSmtpConfig({...smtpConfig, user: e.target.value})}
+                required
               />
             </div>
-            <Button onClick={handleSaveProfile} disabled={isSaving}>
-              {saved ? (
-                <>
-                  <Shield className="w-4 h-4 mr-2" />
-                  Saved Successfully!
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  {isSaving ? "Saving..." : "Save Profile"}
-                </>
-              )}
-            </Button>
-          </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-black uppercase flex items-center gap-2">
+                <Lock className="w-4 h-4" /> SMTP Password
+              </label>
+              <Input 
+                type="password"
+                placeholder="••••••••••••••••"
+                value={smtpConfig.pass}
+                onChange={(e) => setSmtpConfig({...smtpConfig, pass: e.target.value})}
+                required
+              />
+              <p className="text-[10px] font-bold text-gray-500 uppercase">
+                Note: For Gmail, use an "App Password" from your Google Account settings.
+              </p>
+            </div>
+
+            {message && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={cn(
+                  "p-4 rounded-lg border-2 border-black flex items-center gap-3 font-bold",
+                  message.type === "success" ? "bg-green-100" : "bg-red-100"
+                )}
+              >
+                {message.type === "success" ? <CheckCircle2 className="w-5 h-5 text-green-600" /> : <AlertCircle className="w-5 h-5 text-red-600" />}
+                {message.text}
+              </motion.div>
+            )}
+
+            <div className="flex justify-end pt-4">
+              <Button type="submit" disabled={isSaving} className="gap-2">
+                {isSaving ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Save className="w-5 h-5" />
+                )}
+                Save Settings
+              </Button>
+            </div>
+          </form>
         </Card>
 
-        <Card className="bg-[#5CC8FF]">
-          <div className="flex items-center gap-3 mb-6">
-            <Key className="w-6 h-6" />
-            <h2 className="text-2xl font-black">API Keys</h2>
-          </div>
-          <p className="font-bold mb-4">Your secret keys for integrating PersonaForge agents.</p>
-          <div className="bg-white p-4 border-[3px] border-black rounded-lg flex items-center justify-between">
-            <code className="text-sm font-mono">
-              {isKeyRevealed ? apiKey : "pf_live_" + "•".repeat(24)}
-            </code>
-            <Button variant="outline" size="sm" onClick={() => setIsKeyRevealed(!isKeyRevealed)}>
-              {isKeyRevealed ? "Hide" : "Reveal"}
-            </Button>
-          </div>
-          <Button className="mt-4" variant="outline" onClick={handleGenerateKey} disabled={isGenerating}>
-            {isGenerating ? "Generating..." : "Generate New Key"}
-          </Button>
+        <Card className="bg-yellow-50 border-dashed">
+          <h3 className="text-sm font-black uppercase mb-2 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-yellow-600" /> Need Help?
+          </h3>
+          <p className="text-xs font-bold leading-relaxed">
+            If you are using Gmail, make sure you have 2-Step Verification enabled. 
+            Then, go to <a href="https://myaccount.google.com/apppasswords" target="_blank" className="text-[#FF7A00] underline">App Passwords</a> and generate a new password specifically for this application.
+          </p>
         </Card>
-
-        <Card className="bg-[#86EFAC]">
-          <div className="flex items-center gap-3 mb-6">
-            <Shield className="w-6 h-6" />
-            <h2 className="text-2xl font-black">Subscription Plan</h2>
-          </div>
-          <p className="font-bold mb-2">Current Plan: <span className="uppercase text-[#FF7A00]">{localPlan}</span></p>
-          <p className="mb-4">You are currently on the {localPlan} plan. Upgrade to unlock more agents and higher API limits.</p>
-          <Button variant="outline" onClick={() => setShowUpgradeModal(true)}>
-            View Upgrade Options
-          </Button>
-        </Card>
-      </main>
-
-      {/* Upgrade Modal */}
-      <AnimatePresence>
-        {showUpgradeModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowUpgradeModal(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-5xl bg-[#FDF3B1] border-[4px] border-black rounded-2xl shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden flex flex-col max-h-[90vh]"
-            >
-              {/* Modal Header */}
-              <div className="bg-[#FFF4E2] border-b-[4px] border-black p-6 flex items-center justify-between sticky top-0 z-10">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-[#86EFAC] border-[3px] border-black flex items-center justify-center">
-                    <Zap className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-3xl font-black">Upgrade Your Plan</h2>
-                    <p className="font-bold text-gray-600">Scale your AI agents with PersonaForge</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setShowUpgradeModal(false)}
-                  className="w-10 h-10 rounded-full border-[3px] border-black flex items-center justify-center hover:bg-[#FF9AA2] transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Modal Body / Pricing Cards */}
-              <div className="p-8 overflow-y-auto">
-                <div className="grid md:grid-cols-3 gap-6">
-                  {pricingTiers.map((tier) => (
-                    <div 
-                      key={tier.name}
-                      style={{ backgroundColor: tier.color }}
-                      className={cn(
-                        "relative p-6 rounded-xl border-[3px] border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] flex flex-col hover:translate-y-[-4px] transition-transform",
-                        tier.popular ? "ring-4 ring-[#FF7A00]" : ""
-                      )}
-                    >
-                      {tier.popular && (
-                        <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#FF7A00] text-white font-black text-xs px-3 py-1 border-[2px] border-black rounded-full uppercase tracking-wider">
-                          Most Popular
-                        </div>
-                      )}
-                      
-                      <div className="mb-6">
-                        <h3 className="text-2xl font-black mb-2">{tier.name}</h3>
-                        <div className="flex items-end gap-1">
-                          <span className="text-4xl font-black">{tier.price}</span>
-                          {tier.price !== "Free" && tier.price !== "Custom" && <span className="font-bold text-gray-700 mb-1">/mo</span>}
-                        </div>
-                      </div>
-
-                      <ul className="space-y-3 mb-8 flex-1">
-                        {tier.features.map((feature, i) => (
-                          <li key={i} className="flex items-start gap-2 font-bold text-sm">
-                            <Check className="w-5 h-5 shrink-0 mt-0.5" />
-                            <span>{feature}</span>
-                          </li>
-                        ))}
-                      </ul>
-
-                      <Button 
-                        className={cn("w-full border-[3px] border-black uppercase tracking-wider shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all", tier.buttonColor)}
-                        onClick={() => handleUpgradePlan(tier.value)}
-                        disabled={localPlan === tier.value || isUpgrading}
-                      >
-                        {localPlan === tier.value ? "Current Plan" : isUpgrading ? "Upgrading..." : "Select " + tier.name}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      </div>
     </div>
   )
 }

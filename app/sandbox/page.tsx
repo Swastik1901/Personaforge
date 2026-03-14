@@ -5,6 +5,8 @@ import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useAuth } from "@/contexts/AuthContext"
+import { useRouter } from "next/navigation"
 import {
   ArrowLeft,
   Send,
@@ -108,6 +110,7 @@ interface LogEntry {
 }
 
 export default function SandboxPage() {
+  const { token } = useAuth()
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
   const [logs, setLogs] = useState<LogEntry[]>([
@@ -126,7 +129,8 @@ export default function SandboxPage() {
     tone: "Friendly",
     expertise: "General Support",
     description: "You are a helpful AI assistant.",
-    guardrails: ["stayOnTopic", "noHarmfulContent"]
+    guardrails: ["stayOnTopic", "noHarmfulContent"],
+    tools: [] as string[]
   })
   const [isEditingConfig, setIsEditingConfig] = useState(false)
   const [editConfigForm, setEditConfigForm] = useState(config)
@@ -140,9 +144,19 @@ export default function SandboxPage() {
     if (pendingConfig) {
       try {
         const parsed = JSON.parse(pendingConfig)
-        setConfig(parsed)
-        setEditConfigForm(parsed)
-        loadedConfig = parsed
+        
+        // Ensure tools array exists even if missing from payload
+        if (!parsed.tools) parsed.tools = []
+        
+        const newConfig = {
+          ...config,
+          ...parsed,
+          id: parsed.id || parsed._id // Capture ID if present
+        }
+        
+        setConfig(newConfig)
+        setEditConfigForm(newConfig)
+        loadedConfig = newConfig
         // keep pending config in localStorage so it persists on reload
       } catch (e) {
         console.error("Failed to parse pending config", e)
@@ -174,6 +188,7 @@ export default function SandboxPage() {
     const initAgent = async () => {
       setLogs(prev => [...prev, { id: Date.now() + Math.random(), type: "info", message: "Forging new agent...", timestamp: new Date().toLocaleTimeString() }])
       try {
+        console.log("[REACT DEBUG] Forging config:", config);
         const res = await fetch("http://localhost:8000/forge", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -197,6 +212,24 @@ export default function SandboxPage() {
     setIsEditingConfig(false)
     setSessionId("session-" + Math.random().toString(36).substring(2, 9))
     handleClearChat(editConfigForm)
+  }
+
+  const updateAgentStats = async (updates: any) => {
+    const targetId = (config as any).id || agentId
+    if (!targetId || !token) return
+
+    try {
+      await fetch(`/api/agents/${targetId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updates)
+      })
+    } catch (error) {
+      console.error('Failed to update agent stats:', error)
+    }
   }
 
   const handleSend = async () => {
@@ -230,10 +263,26 @@ export default function SandboxPage() {
     }
 
     try {
+      // Fetch user's SMTP settings to pass to backend
+      let userSmtp = null
+      try {
+        const smtpRes = await fetch('/api/user/settings', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const smtpData = await smtpRes.json()
+        if (smtpData.success) userSmtp = smtpData.smtpConfig
+      } catch (e) {
+        console.warn("Failed to fetch user SMTP for chat, falling back to global")
+      }
+
       const res = await fetch(`http://localhost:8000/v1/${agentId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: messageText, session_id: sessionId })
+        body: JSON.stringify({ 
+          message: messageText, 
+          session_id: sessionId,
+          smtpConfig: userSmtp
+        })
       })
       const data = await res.json()
       
@@ -245,6 +294,13 @@ export default function SandboxPage() {
       }
       setMessages(prev => [...prev, aiMessage])
       setIsTyping(false)
+
+      // Update stats
+      if (messages.length === 1) { // First exchange (Intro + User First Message)
+        updateAgentStats({ testCount: 1, totalApiCalls: 1 })
+      } else {
+        updateAgentStats({ totalApiCalls: 1 })
+      }
 
       setLogs(prev => [
         ...prev,
@@ -390,6 +446,13 @@ export default function SandboxPage() {
               <div className="text-xs font-bold mb-1">GUARDRAILS</div>
               <div className="font-black text-xs leading-relaxed">
                 {config.guardrails.join(", ")}
+              </div>
+            </Card>
+
+            <Card className="bg-[#FFD84D] hover:translate-y-[-2px] transition-transform">
+              <div className="text-xs font-bold mb-1">AGENT TOOLS</div>
+              <div className="font-black text-xs leading-relaxed">
+                {config.tools && config.tools.length > 0 ? config.tools.join(", ") : "None"}
               </div>
             </Card>
 
@@ -654,8 +717,26 @@ export default function SandboxPage() {
                 </div>
 
                 <div>
-                  <label className="block font-bold mb-2">Active Guardrails</label>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block font-bold">Active Guardrails</label>
+                  </div>
                   <div className="flex flex-wrap gap-2">
+                    <label className="flex items-center gap-2 bg-white px-3 py-2 border-[2px] border-black rounded-lg cursor-pointer hover:bg-gray-50">
+                      <input 
+                        type="checkbox" 
+                        checked={editConfigForm.guardrails.length === 6}
+                        onChange={(e) => {
+                          const allRules = ["stayOnTopic", "noHarmfulContent", "jailbreakResistance", "noCompetitors", "mandatoryDisclaimer", "noPersonalOpinions"];
+                          if (e.target.checked) {
+                            setEditConfigForm({...editConfigForm, guardrails: allRules});
+                          } else {
+                            setEditConfigForm({...editConfigForm, guardrails: []});
+                          }
+                        }}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm font-bold">Toggle All Guardrails</span>
+                    </label>
                     {["stayOnTopic", "noHarmfulContent", "jailbreakResistance", "noCompetitors", "mandatoryDisclaimer", "noPersonalOpinions"].map(rule => (
                       <label key={rule} className="flex items-center gap-2 bg-white px-3 py-2 border-[2px] border-black rounded-lg cursor-pointer hover:bg-gray-50">
                         <input 
@@ -671,6 +752,35 @@ export default function SandboxPage() {
                           className="w-4 h-4"
                         />
                         <span className="text-sm font-bold">{rule}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block font-bold">Agent Tools</label>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {["Web Search", "Visit URL", "Read File", "Send Email", "Google Calendar", "AWS MCP Docs"].map(tool => (
+                      <label key={tool} className={cn(
+                        "flex items-center gap-2 px-3 py-2 border-[2px] border-black rounded-lg cursor-pointer transition-colors",
+                        (editConfigForm.tools || []).includes(tool) ? "bg-[#FFD84D]" : "bg-white hover:bg-gray-50"
+                      )}>
+                        <input 
+                          type="checkbox" 
+                          checked={(editConfigForm.tools || []).includes(tool)}
+                          onChange={(e) => {
+                            const currentTools = editConfigForm.tools || [];
+                            if (e.target.checked) {
+                              setEditConfigForm({...editConfigForm, tools: [...currentTools, tool]});
+                            } else {
+                              setEditConfigForm({...editConfigForm, tools: currentTools.filter(t => t !== tool)});
+                            }
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm font-bold">{tool}</span>
                       </label>
                     ))}
                   </div>
