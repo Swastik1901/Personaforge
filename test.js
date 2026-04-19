@@ -5,7 +5,7 @@ const response = await fetch("http://localhost:8000/v1/22201aa3-641f-4dff-a593-b
         "Authorization": "Bearer pf_024b439b4f2f4572ac51"
     },
     body: JSON.stringify({
-        message: "what can you do?",
+        message: "Do you have any advice for someone learning to code?",
         session_id: "user-session-123"
     })
 });
