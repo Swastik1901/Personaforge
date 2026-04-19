@@ -47,18 +47,18 @@ async function claudeJudgeInput(message, domain) {
 /**
  * Layer 3 — claudeJudgeOutput
  */
-async function claudeJudgeOutput(response, rules) {
-    if (!rules || rules.length === 0) return { safe: true };
-
+async function claudeJudgeOutput(response, rules, domain) {
     try {
         const model = new ChatGroq({
             model: "llama-3.1-8b-instant",
             temperature: 0,
         });
 
-        const promptText = `Does the following response follow all of these rules?
+        const promptText = `Evaluate the following response based on the domain and rules.
+Domain: {domain}
 Rules: {rules}
 Response: {response}
+Does the response strictly stay within the domain AND follow the given rules?
 Reply with ONLY one word: SAFE or UNSAFE`;
 
         const prompt = ChatPromptTemplate.fromTemplate(promptText);
@@ -70,7 +70,8 @@ Reply with ONLY one word: SAFE or UNSAFE`;
         ]);
 
         const res = await chain.invoke({
-            rules: compileGuardrails(rules),
+            domain: domain || 'General',
+            rules: compileGuardrails(rules) || 'None',
             response
         });
 
@@ -80,7 +81,7 @@ Reply with ONLY one word: SAFE or UNSAFE`;
         return { safe: true };
     } catch (e) {
         console.error("claudeJudgeOutput error:", e);
-        return { safe: true };
+        return { safe: true }; // Fail-safe
     }
 }
 
@@ -100,13 +101,13 @@ export async function runGuardrails(userMessage, agentResponse, domain, rules) {
         // 2. Layer 2 input judge
         const l2 = await claudeJudgeInput(userMessage, domain);
         if (!l2.safe) {
-            return { blocked: true, layer: "input", reply: "That's outside what I can help with." };
+            return { blocked: true, layer: "input", reply: "That's outside what I can help with. I specialize in specific domain queries." };
         }
     }
 
-    // 3. Layer 3 output judge
+    // 3. Layer 3 output judge (Check domain alignment)
     if (agentResponse) {
-        const l3 = await claudeJudgeOutput(agentResponse, rules);
+        const l3 = await claudeJudgeOutput(agentResponse, rules, domain);
         if (!l3.safe) {
             return { blocked: true, layer: "output", reply: "I can't provide a response to that." };
         }

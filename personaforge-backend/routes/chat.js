@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { agentsDb } from './forge.js';
 import { getHistory, saveHistory } from '../services/memory.js';
 import { runGuardrails } from '../services/guardrails.js';
-import { buildSystemPrompt } from '../services/promptBuilder.js';
+import { buildSystemPrompt, buildStructuredPrompt } from '../services/promptBuilder.js';
 import { chatWithPersona } from '../services/claude.js';
 
 const router = Router();
@@ -31,16 +31,28 @@ router.post('/:agentId/chat', async (req, res) => {
         }
 
         // 3. Build format and query Claude
-        const fullSystemPrompt = buildSystemPrompt(agent.systemPrompt, agent.guardrails);
-        const reply = await chatWithPersona(fullSystemPrompt, history, message);
+        const fullSystemPrompt = buildSystemPrompt(agent.systemPrompt, agent.domain, agent.guardrails);
+        const structuredMessage = buildStructuredPrompt(message, agent.domain);
 
-        // 4. Output Guardrail
+        let reply = await chatWithPersona(fullSystemPrompt, history, structuredMessage);
+
+        // 4. Output Guardrail (validation before response)
         const outputCheck = await runGuardrails(message, reply, agent.domain, agent.guardrails);
+
+        // If out of domain/blocked on output -> Regenerate with stricter constraint
         if (outputCheck.blocked) {
-            return res.json({ message: outputCheck.reply, blocked: true, session_id });
+            console.log("Output guardrail triggered. Regenerating response...");
+            const stricterSystemPrompt = fullSystemPrompt + "\nCRITICAL: You failed validation. You MUST act purely within your domain and avoid giving generic, unhelpful, or out-of-character responses. Try again.";
+            reply = await chatWithPersona(stricterSystemPrompt, history, structuredMessage);
+
+            // Secondary check (optional fail-safe)
+            const secondCheck = await runGuardrails(message, reply, agent.domain, agent.guardrails);
+            if (secondCheck.blocked) {
+                return res.json({ message: "I apologize, but I am unable to provide a response to that within my domain expertise.", blocked: true, session_id });
+            }
         }
 
-        // 5. Save History
+        // 5. Save History (Save the actual user message for natural dialogue feeling)
         await saveHistory(session_id, message, reply);
 
         // 6. Return response

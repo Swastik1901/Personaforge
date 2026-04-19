@@ -1,11 +1,11 @@
-const response = await fetch("http://localhost:8000/v1/4e05087e-7f1c-4465-9fff-f5bc93528030/chat", {
+const response = await fetch("http://localhost:8000/v1/22201aa3-641f-4dff-a593-b773756f2e4b/chat", {
     method: "POST",
     headers: {
         "Content-Type": "application/json",
-        "Authorization": "Bearer pf_0c5fc8cfca3d4cefb144"
+        "Authorization": "Bearer pf_024b439b4f2f4572ac51"
     },
     body: JSON.stringify({
-        message: "Who is Mona Lisa?",
+        message: "what can you do?",
         session_id: "user-session-123"
     })
 });
