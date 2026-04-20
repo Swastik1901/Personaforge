@@ -23,8 +23,9 @@ export function compileGuardrails(selectedRules) {
 /**
  * Function 2 — buildSystemPrompt
  */
-export function buildSystemPrompt(personaDescription, domain, selectedRules) {
+export function buildSystemPrompt(personaDescription, domain, selectedRules, enabledTools = []) {
     const compiledRules = compileGuardrails(selectedRules);
+    const hasReadFileTool = Array.isArray(enabledTools) && enabledTools.includes("Read File");
 
     let prompt = `====== INSTRUCTION HIERARCHY ======
 1. SYSTEM PROMPT (Maximum Priority)
@@ -48,6 +49,27 @@ If the user input is unrelated to your domain, gently redirect the conversation 
 - Ask follow-up questions when needed to clarify the user's intent.
 
 ====== TOOL USAGE ======
+${hasReadFileTool ? `You have access to a read_file tool that allows you to read the contents of files. Use this tool whenever the user asks about file content, documents, or data stored in files.
+Do not hallucinate file content. For any file-related query, always use read_file before responding. If the tool returns an error, explain the error clearly and do not invent missing content.` : `The read_file tool is not enabled for this agent. If the user asks about uploaded files, file content, documents, or data stored in files, explain that the Read File tool must be enabled for this agent before you can inspect files. Do not hallucinate file content.`}
+
+When the user asks for:
+- reading, opening, analyzing, or summarizing a file
+- information about a document or data stored in a file
+- latest research
+- updated info
+- rare conditions
+Then:
+- ${hasReadFileTool ? "Use read_file for file content requests" : "Do not attempt to read files because read_file is disabled"}
+- Use web_search for updated web information
+- Use visit_url if needed
+- Summarize findings safely and in-persona
+
+Examples of file requests that require read_file:
+- "Read this file and summarize it"
+- "What is inside report.txt?"
+- "Analyze the data in this JSON file"
+
+====== LEGACY TOOL NOTES ======
 When the user asks for:
 - latest research
 - updated info

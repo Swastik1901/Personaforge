@@ -7,7 +7,7 @@ const router = Router();
 
 router.post('/', async (req, res) => {
     try {
-        const { description, tone, guardrails, memory } = req.body;
+        const { description, tone, guardrails, memory, tools } = req.body;
 
         if (!description || typeof description !== 'string') {
             return res.status(400).json({ error: "description is required and must not be empty" });
@@ -27,6 +27,7 @@ router.post('/', async (req, res) => {
             domain: config.domain,
             sampleReply: config.sampleReply,
             guardrails: guardrails || [],
+            tools: Array.isArray(tools) ? tools : [],
             memory: memory !== false // Default true, or store exactly what was sent
         };
 

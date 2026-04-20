@@ -21,7 +21,8 @@ import {
   CheckCircle,
   Activity,
   Copy,
-  X
+  X,
+  Upload
 } from "lucide-react"
 
 function cn(...classes: (string | undefined | null | boolean)[]): string {
@@ -109,6 +110,12 @@ interface LogEntry {
   timestamp: string
 }
 
+interface UploadedFile {
+  file_name: string
+  file_path: string
+  size_bytes: number
+}
+
 export default function SandboxPage() {
   const { token } = useAuth()
   const [messages, setMessages] = useState<Message[]>([])
@@ -123,6 +130,7 @@ export default function SandboxPage() {
   const [sessionId, setSessionId] = useState(() => "session-" + Math.random().toString(36).substring(2, 9))
   const [mounted, setMounted] = useState(false)
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
 
   const [config, setConfig] = useState({
     name: "AI Assistant",
@@ -134,6 +142,7 @@ export default function SandboxPage() {
   })
   const [isEditingConfig, setIsEditingConfig] = useState(false)
   const [editConfigForm, setEditConfigForm] = useState(config)
+  const canReadFiles = (config.tools || []).includes("Read File")
 
   useEffect(() => {
     setMounted(true)
@@ -182,6 +191,12 @@ export default function SandboxPage() {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  useEffect(() => {
+    if (!canReadFiles && uploadedFiles.length > 0) {
+      setUploadedFiles([])
+    }
+  }, [canReadFiles, uploadedFiles.length])
 
   // Forge agent when config changes
   useEffect(() => {
@@ -281,6 +296,7 @@ export default function SandboxPage() {
         body: JSON.stringify({ 
           message: messageText, 
           session_id: sessionId,
+          attached_files: canReadFiles ? uploadedFiles : [],
           smtpConfig: userSmtp
         })
       })
@@ -309,6 +325,66 @@ export default function SandboxPage() {
     } catch (e) {
       setMessages(prev => [...prev, { id: Date.now() + Math.random(), type: "ai", content: "Error connecting to AI.", timestamp: new Date().toLocaleTimeString() }])
       setIsTyping(false)
+    }
+  }
+
+  const handleFileUpload = async (file: File | null) => {
+    if (!file) return
+    if (!canReadFiles) {
+      setLogs(prev => [
+        ...prev,
+        { id: Date.now() + Math.random(), type: "warning", message: "Enable Read File before uploading files", timestamp: new Date().toLocaleTimeString() }
+      ])
+      return
+    }
+
+    setLogs(prev => [
+      ...prev,
+      { id: Date.now() + Math.random(), type: "info", message: `Uploading ${file.name}`, timestamp: new Date().toLocaleTimeString() }
+    ])
+
+    try {
+      const contentBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = String(reader.result || "")
+          resolve(result.includes(",") ? result.split(",")[1] : result)
+        }
+        reader.onerror = () => reject(reader.error)
+        reader.readAsDataURL(file)
+      })
+
+      const res = await fetch("http://localhost:8000/files/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          contentBase64
+        })
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data.file_path) {
+        throw new Error(data.error || "Upload failed")
+      }
+
+      const uploadedFile = {
+        file_name: file.name,
+        file_path: data.file_path,
+        size_bytes: data.size_bytes || file.size
+      }
+
+      setUploadedFiles(prev => [...prev, uploadedFile])
+      setInputValue(`Read this file and summarize it: ${data.file_path}`)
+      setLogs(prev => [
+        ...prev,
+        { id: Date.now() + Math.random(), type: "success", message: `${file.name} attached`, timestamp: new Date().toLocaleTimeString() }
+      ])
+    } catch (error) {
+      setLogs(prev => [
+        ...prev,
+        { id: Date.now() + Math.random(), type: "warning", message: error instanceof Error ? error.message : "File upload failed", timestamp: new Date().toLocaleTimeString() }
+      ])
     }
   }
 
@@ -567,7 +643,46 @@ export default function SandboxPage() {
 
           {/* Chat Input */}
           <div className="border-t-[3px] border-black p-4 bg-[#FDF3B1]">
+            {uploadedFiles.length > 0 && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {uploadedFiles.map((file) => (
+                  <div
+                    key={file.file_path}
+                    className="flex items-center gap-2 px-3 py-2 bg-white border-[2px] border-black rounded-lg text-xs font-bold"
+                  >
+                    <span>{file.file_name}</span>
+                    <span className="text-gray-500">{file.file_path}</span>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${file.file_name}`}
+                      onClick={() => setUploadedFiles(prev => prev.filter(item => item.file_path !== file.file_path))}
+                      className="ml-1"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex gap-2">
+              <label className={cn(
+                "inline-flex items-center justify-center font-bold rounded-lg transition-all duration-200 border-[3px] border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] px-4 py-3 text-sm",
+                canReadFiles
+                  ? "bg-[#FFF4E2] text-black hover:bg-gray-50 hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none active:translate-x-[4px] active:translate-y-[4px] active:shadow-none cursor-pointer"
+                  : "bg-gray-200 text-gray-500 cursor-not-allowed opacity-60"
+              )}>
+                <Upload className="w-5 h-5" />
+                <input
+                  type="file"
+                  accept=".txt,.json,.md,.markdown,.csv,.tsv,.log,.yaml,.yml,.xml,.html,.css,.js,.ts"
+                  className="hidden"
+                  disabled={!canReadFiles}
+                  onChange={(e) => {
+                    handleFileUpload(e.target.files?.[0] || null)
+                    e.currentTarget.value = ""
+                  }}
+                />
+              </label>
               <Input
                 placeholder={`Ask ${config.name} something...`}
                 value={inputValue}

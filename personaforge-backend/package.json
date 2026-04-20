@@ -17,11 +17,13 @@
         "@langchain/community": "^1.1.23",
         "@langchain/core": "^1.1.32",
         "@langchain/groq": "^1.1.5",
+        "@langchain/langgraph": "^1.2.8",
         "cors": "^2.8.6",
         "dotenv": "^17.3.1",
         "express": "^5.2.1",
         "ioredis": "^5.10.0",
         "langchain": "^1.2.31",
-        "uuid": "^13.0.0"
+        "uuid": "^13.0.0",
+        "zod": "^4.1.13"
     }
 }

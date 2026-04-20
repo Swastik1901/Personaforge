@@ -7,10 +7,27 @@ import { chatWithPersona } from '../services/claude.js';
 
 const router = Router();
 
+function isFileRelatedMessage(message) {
+    return /\b(file|document|upload|uploaded|attachment|attached|read|open|summari[sz]e|analy[sz]e|json|csv|txt|md|report)\b/i.test(message);
+}
+
+function normalizeAttachedFiles(files) {
+    if (!Array.isArray(files)) return [];
+
+    return files
+        .filter(file => file && typeof file.file_path === 'string')
+        .map(file => ({
+            file_path: file.file_path,
+            file_name: typeof file.file_name === 'string' ? file.file_name : file.file_path,
+            size_bytes: typeof file.size_bytes === 'number' ? file.size_bytes : null
+        }));
+}
+
 router.post('/:agentId/chat', async (req, res) => {
     try {
         const { agentId } = req.params;
         const { message, session_id } = req.body;
+        const attachedFiles = normalizeAttachedFiles(req.body.attached_files);
 
         if (!message || !session_id) {
             return res.status(400).json({ error: "message and session_id are required" });
@@ -19,6 +36,18 @@ router.post('/:agentId/chat', async (req, res) => {
         const agent = agentsDb.get(agentId);
         if (!agent) {
             return res.status(404).json({ error: "Agent not found" });
+        }
+
+        const enabledTools = Array.isArray(agent.tools) ? agent.tools : [];
+        const canReadFiles = enabledTools.includes("Read File");
+
+        if (isFileRelatedMessage(message) && !canReadFiles) {
+            return res.json({
+                message: "I cannot inspect files for this agent because the Read File tool is not enabled. Enable Read File in the agent tools, then upload the file again.",
+                blocked: false,
+                session_id,
+                tool_required: "Read File"
+            });
         }
 
         // 1. Get Memory
@@ -31,10 +60,17 @@ router.post('/:agentId/chat', async (req, res) => {
         }
 
         // 3. Build format and query Claude
-        const fullSystemPrompt = buildSystemPrompt(agent.systemPrompt, agent.domain, agent.guardrails);
-        const structuredMessage = buildStructuredPrompt(message, agent.domain);
+        const fullSystemPrompt = buildSystemPrompt(agent.systemPrompt, agent.domain, agent.guardrails, enabledTools);
+        let structuredMessage = buildStructuredPrompt(message, agent.domain);
 
-        let reply = await chatWithPersona(fullSystemPrompt, history, structuredMessage);
+        if (canReadFiles && attachedFiles.length > 0) {
+            const fileContext = attachedFiles
+                .map(file => `- ${file.file_name}: ${file.file_path}${file.size_bytes !== null ? ` (${file.size_bytes} bytes)` : ""}`)
+                .join("\n");
+            structuredMessage += `\n\nUploaded files available to this session:\n${fileContext}\nIf the user refers to "the file", "this file", an uploaded file, or asks to read/analyze/summarize file content, call read_file with the matching file_path before answering.`;
+        }
+
+        let reply = await chatWithPersona(fullSystemPrompt, history, structuredMessage, enabledTools);
 
         // 4. Output Guardrail (validation before response)
         const outputCheck = await runGuardrails(message, reply, agent.domain, agent.guardrails);
@@ -43,7 +79,7 @@ router.post('/:agentId/chat', async (req, res) => {
         if (outputCheck.blocked) {
             console.log("Output guardrail triggered. Regenerating response...");
             const stricterSystemPrompt = fullSystemPrompt + "\nCRITICAL: You failed validation. You MUST act purely within your domain and avoid giving generic, unhelpful, or out-of-character responses. Try again.";
-            reply = await chatWithPersona(stricterSystemPrompt, history, structuredMessage);
+            reply = await chatWithPersona(stricterSystemPrompt, history, structuredMessage, enabledTools);
 
             // Secondary check (optional fail-safe)
             const secondCheck = await runGuardrails(message, reply, agent.domain, agent.guardrails);

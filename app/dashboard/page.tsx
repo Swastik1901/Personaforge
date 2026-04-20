@@ -148,7 +148,8 @@ export default function DashboardPage() {
       tone: agent.tone || "Friendly",
       expertise: agent.domain || "General",
       description: agent.systemPrompt || agent.description,
-      guardrails: agent.guardrails || ["stayOnTopic", "noHarmfulContent"]
+      guardrails: agent.guardrails || ["stayOnTopic", "noHarmfulContent"],
+      tools: agent.tools || []
     }
     localStorage.setItem('personaforge_pending_config', JSON.stringify(config))
     router.push('/sandbox')
@@ -161,7 +162,8 @@ export default function DashboardPage() {
       tone: agent.tone || "Friendly",
       expertise: agent.domain || "General",
       description: agent.systemPrompt || agent.description,
-      guardrails: agent.guardrails || ["stayOnTopic", "noHarmfulContent"]
+      guardrails: agent.guardrails || ["stayOnTopic", "noHarmfulContent"],
+      tools: agent.tools || []
     }
     localStorage.setItem('personaforge_deploy_config', JSON.stringify(config))
     router.push('/deploy')

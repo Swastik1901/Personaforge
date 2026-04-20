@@ -109,7 +109,8 @@ export default function DeployPage() {
     tone: "Friendly",
     expertise: "General Support",
     description: "You are a helpful AI assistant.",
-    guardrails: ["stayOnTopic", "noHarmfulContent"]
+    guardrails: ["stayOnTopic", "noHarmfulContent"],
+    tools: [] as string[]
   })
 
   const router = useRouter()
