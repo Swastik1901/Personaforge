@@ -9,7 +9,7 @@ interface User {
   email: string
   plan: string
   isVerified: boolean
-  agentsCreated?: number 
+  agentsCreated?: number
 }
 
 interface AuthContextType {
@@ -34,13 +34,13 @@ function AuthProviderInner({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (session?.user) {
       setUser({
-        id: session.user.id,
+        id: (session.user as any).id,
         fullName: session.user.name,
         email: session.user.email,
-        plan: session.user.plan,
-        isVerified: session.user.isVerified,
-        agentsCreated: session.user.agentsCreated
-      })
+        plan: (session.user as any).plan,
+        isVerified: (session.user as any).isVerified,
+        agentsCreated: (session.user as any).agentsCreated
+      } as any)
     } else {
       setUser(null)
     }
@@ -133,15 +133,15 @@ function AuthProviderInner({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      token, 
-      login, 
-      loginWithGoogle, 
-      loginWithGitHub, 
-      signup, 
-      logout, 
-      loading 
+    <AuthContext.Provider value={{
+      user,
+      token,
+      login,
+      loginWithGoogle,
+      loginWithGitHub,
+      signup,
+      logout,
+      loading
     }}>
       {children}
     </AuthContext.Provider>

@@ -20,9 +20,10 @@ import {
   Clock,
   CheckCircle,
   Activity,
-  Copy,
   X,
-  Upload
+  Upload,
+  Plus,
+  FileText
 } from "lucide-react"
 
 function cn(...classes: (string | undefined | null | boolean)[]): string {
@@ -38,19 +39,19 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "default", size = "default", ...props }, ref) => {
     const baseStyles = "inline-flex items-center justify-center font-bold rounded-lg transition-all duration-200 border-[3px] border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none active:translate-x-[4px] active:translate-y-[4px] active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed"
-    
+
     const variants = {
       default: "bg-[#FF7A00] text-white hover:bg-[#E66D00]",
       outline: "bg-[#FFF4E2] text-black hover:bg-gray-50",
       ghost: "bg-transparent border-transparent shadow-none hover:bg-gray-100 hover:shadow-none"
     }
-    
+
     const sizes = {
       default: "px-6 py-3 text-base",
       sm: "px-4 py-2 text-sm",
       lg: "px-8 py-4 text-lg"
     }
-    
+
     return (
       <button
         ref={ref}
@@ -63,7 +64,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = "Button"
 
 // Input Component
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> { }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, ...props }, ref) => {
@@ -146,23 +147,23 @@ export default function SandboxPage() {
 
   useEffect(() => {
     setMounted(true)
-    
+
     // Check for pending config from create-agent
     let loadedConfig = config
     const pendingConfig = localStorage.getItem('personaforge_pending_config')
     if (pendingConfig) {
       try {
         const parsed = JSON.parse(pendingConfig)
-        
+
         // Ensure tools array exists even if missing from payload
         if (!parsed.tools) parsed.tools = []
-        
+
         const newConfig = {
           ...config,
           ...parsed,
           id: parsed.id || parsed._id // Capture ID if present
         }
-        
+
         setConfig(newConfig)
         setEditConfigForm(newConfig)
         loadedConfig = newConfig
@@ -180,7 +181,7 @@ export default function SandboxPage() {
         timestamp: new Date().toLocaleTimeString()
       }
     ])
-    
+
     setLogs([{ id: 1, type: "info", message: "Sandbox initializing...", timestamp: new Date().toLocaleTimeString() }])
   }, [])
 
@@ -204,12 +205,14 @@ export default function SandboxPage() {
       setLogs(prev => [...prev, { id: Date.now() + Math.random(), type: "info", message: "Forging new agent...", timestamp: new Date().toLocaleTimeString() }])
       try {
         console.log("[REACT DEBUG] Forging config:", config);
+        console.log("[REACT DEBUG] Config tools:", config.tools);
         const res = await fetch("http://localhost:8000/forge", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(config)
         })
         const data = await res.json()
+        console.log("[REACT DEBUG] Forge response:", data);
         if (data.agentId) {
           setAgentId(data.agentId)
           if (data.apiKey) setApiKey(data.apiKey)
@@ -293,15 +296,15 @@ export default function SandboxPage() {
       const res = await fetch(`http://localhost:8000/v1/${agentId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          message: messageText, 
+        body: JSON.stringify({
+          message: messageText,
           session_id: sessionId,
           attached_files: canReadFiles ? uploadedFiles : [],
           smtpConfig: userSmtp
         })
       })
       const data = await res.json()
-      
+
       const aiMessage: Message = {
         id: Date.now() + Math.random(),
         type: "ai",
@@ -429,7 +432,7 @@ export default function SandboxPage() {
         body: JSON.stringify({ message: jailbreakPrompt, session_id: sessionId })
       })
       const data = await res.json()
-      
+
       const aiMessage: Message = {
         id: Date.now() + Math.random(),
         type: "ai",
@@ -589,14 +592,14 @@ export default function SandboxPage() {
                     </div>
                     <div className="font-medium text-sm space-y-2 whitespace-pre-wrap">
                       {message.type === "ai" ? (
-                        <ReactMarkdown 
+                        <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{
-                            ul: ({node, ...props}) => <ul className="list-disc pl-5 my-2" {...props} />,
-                            ol: ({node, ...props}) => <ol className="list-decimal pl-5 my-2" {...props} />,
-                            li: ({node, ...props}) => <li className="mb-1 marker:text-black marker:font-bold" {...props} />,
-                            p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
-                            strong: ({node, ...props}) => <strong className="font-black" {...props} />
+                            ul: ({ node, ...props }) => <ul className="list-disc pl-5 my-2" {...props} />,
+                            ol: ({ node, ...props }) => <ol className="list-decimal pl-5 my-2" {...props} />,
+                            li: ({ node, ...props }) => <li className="mb-1 marker:text-black marker:font-bold" {...props} />,
+                            p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+                            strong: ({ node, ...props }) => <strong className="font-black" {...props} />
                           }}
                         >
                           {message.content}
@@ -643,59 +646,91 @@ export default function SandboxPage() {
 
           {/* Chat Input */}
           <div className="border-t-[3px] border-black p-4 bg-[#FDF3B1]">
-            {uploadedFiles.length > 0 && (
-              <div className="mb-3 flex flex-wrap gap-2">
-                {uploadedFiles.map((file) => (
-                  <div
-                    key={file.file_path}
-                    className="flex items-center gap-2 px-3 py-2 bg-white border-[2px] border-black rounded-lg text-xs font-bold"
-                  >
-                    <span>{file.file_name}</span>
-                    <span className="text-gray-500">{file.file_path}</span>
-                    <button
-                      type="button"
-                      aria-label={`Remove ${file.file_name}`}
-                      onClick={() => setUploadedFiles(prev => prev.filter(item => item.file_path !== file.file_path))}
-                      className="ml-1"
+            <div className="bg-[#FFF4E2] border-[3px] border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col overflow-hidden focus-within:ring-4 focus-within:ring-[#FF7A00]/30 transition-all">
+
+              {/* Uploaded Files Area Top of Textarea */}
+              {uploadedFiles.length > 0 && (
+                <div className="pt-3 px-3 flex flex-wrap gap-2">
+                  {uploadedFiles.map((file) => (
+                    <div
+                      key={file.file_path}
+                      className="flex items-center gap-2 px-2 py-1.5 bg-white border-[2px] border-black rounded-xl text-xs font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] max-w-fit"
                     >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex gap-2">
-              <label className={cn(
-                "inline-flex items-center justify-center font-bold rounded-lg transition-all duration-200 border-[3px] border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] px-4 py-3 text-sm",
-                canReadFiles
-                  ? "bg-[#FFF4E2] text-black hover:bg-gray-50 hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none active:translate-x-[4px] active:translate-y-[4px] active:shadow-none cursor-pointer"
-                  : "bg-gray-200 text-gray-500 cursor-not-allowed opacity-60"
-              )}>
-                <Upload className="w-5 h-5" />
-                <input
-                  type="file"
-                  accept=".txt,.json,.md,.markdown,.csv,.tsv,.log,.yaml,.yml,.xml,.html,.css,.js,.ts"
-                  className="hidden"
-                  disabled={!canReadFiles}
-                  onChange={(e) => {
-                    handleFileUpload(e.target.files?.[0] || null)
-                    e.currentTarget.value = ""
-                  }}
-                />
-              </label>
-              <Input
-                placeholder={`Ask ${config.name} something...`}
+                      <div className="flex items-center gap-2 bg-[#C4B5FD] px-2 py-1 border-[2px] border-black rounded shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        <FileText className="w-3 h-3" />
+                        <span className="truncate max-w-[120px]">{file.file_name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${file.file_name}`}
+                        onClick={() => setUploadedFiles(prev => prev.filter(item => item.file_path !== file.file_path))}
+                        className="ml-1 hover:bg-red-100 rounded-full p-0.5 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Input Area */}
+              <textarea
+                placeholder={`Ask ${config?.name || 'anything'}...`}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && handleSend()}
-                className="flex-1"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (inputValue.trim() || uploadedFiles.length > 0) {
+                      handleSend();
+                    }
+                  }
+                }}
+                className="w-full bg-transparent px-4 py-3 text-base outline-none resize-none min-h-[80px] font-medium"
+                rows={2}
               />
-              <Button onClick={handleSend}>
-                <Send className="w-5 h-5" />
-              </Button>
-              <Button variant="outline" onClick={() => handleClearChat()}>
-                <Trash2 className="w-5 h-5" />
-              </Button>
+
+              {/* Bottom Actions */}
+              <div className="px-3 pb-3 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <label className={cn(
+                    "flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200 cursor-pointer border-[2px] border-transparent hover:border-black hover:bg-white hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]",
+                    !canReadFiles && "opacity-50 cursor-not-allowed hover:border-transparent hover:bg-transparent hover:shadow-none"
+                  )}>
+                    <Plus className="w-6 h-6" />
+                    <input
+                      type="file"
+                      accept=".txt,.json,.md,.markdown,.csv,.tsv,.log,.yaml,.yml,.xml,.html,.css,.js,.ts"
+                      className="hidden"
+                      disabled={!canReadFiles}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handleFileUpload(file);
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => handleClearChat()}
+                    className="flex justify-center items-center w-10 h-10 rounded-full border-[2px] border-transparent hover:border-black hover:bg-white hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all text-black"
+                    title="Clear Chat"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={handleSend}
+                    disabled={(!inputValue.trim() && uploadedFiles.length === 0) || isTyping}
+                    className="flex items-center justify-center w-10 h-10 bg-black text-white rounded-full hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100"
+                  >
+                    <Send className="w-4 h-4 ml-0.5 mt-0.5" />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </main>
@@ -716,7 +751,7 @@ export default function SandboxPage() {
               <p className="text-xs">Test guardrail protection</p>
             </button>
 
-            <button 
+            <button
               onClick={handleGuardrailTest}
               className="w-full p-4 bg-[#5CC8FF] border-[3px] border-black rounded-lg hover:translate-y-[-2px] transition-transform shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-left">
               <div className="flex items-center gap-2 mb-2">
@@ -726,7 +761,7 @@ export default function SandboxPage() {
               <p className="text-xs">Verify safety rules</p>
             </button>
 
-            <button 
+            <button
               onClick={handleLengthTest}
               className="w-full p-4 bg-[#FFD84D] border-[3px] border-black rounded-lg hover:translate-y-[-2px] transition-transform shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-left">
               <div className="flex items-center gap-2 mb-2">
@@ -736,7 +771,7 @@ export default function SandboxPage() {
               <p className="text-xs">Check response size</p>
             </button>
 
-            <button 
+            <button
               onClick={handleMemoryTest}
               className="w-full p-4 bg-[#C4B5FD] border-[3px] border-black rounded-lg hover:translate-y-[-2px] transition-transform shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-left">
               <div className="flex items-center gap-2 mb-2">
@@ -803,31 +838,31 @@ export default function SandboxPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block font-bold mb-2">Agent Name</label>
-                  <Input 
-                    value={editConfigForm.name} 
-                    onChange={e => setEditConfigForm({...editConfigForm, name: e.target.value})} 
+                  <Input
+                    value={editConfigForm.name}
+                    onChange={e => setEditConfigForm({ ...editConfigForm, name: e.target.value })}
                   />
                 </div>
                 <div>
                   <label className="block font-bold mb-2">Domain Expertise</label>
-                  <Input 
-                    value={editConfigForm.expertise} 
-                    onChange={e => setEditConfigForm({...editConfigForm, expertise: e.target.value})} 
+                  <Input
+                    value={editConfigForm.expertise}
+                    onChange={e => setEditConfigForm({ ...editConfigForm, expertise: e.target.value })}
                   />
                 </div>
                 <div>
                   <label className="block font-bold mb-2">Tone / Personality</label>
-                  <Input 
-                    value={editConfigForm.tone} 
-                    onChange={e => setEditConfigForm({...editConfigForm, tone: e.target.value})} 
+                  <Input
+                    value={editConfigForm.tone}
+                    onChange={e => setEditConfigForm({ ...editConfigForm, tone: e.target.value })}
                   />
                 </div>
                 <div>
                   <label className="block font-bold mb-2">System Instructions</label>
-                  <textarea 
+                  <textarea
                     className="w-full px-4 py-3 text-base border-[3px] border-black rounded-lg bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7A00]/30 transition-all min-h-[100px]"
-                    value={editConfigForm.description} 
-                    onChange={e => setEditConfigForm({...editConfigForm, description: e.target.value})} 
+                    value={editConfigForm.description}
+                    onChange={e => setEditConfigForm({ ...editConfigForm, description: e.target.value })}
                   />
                 </div>
 
@@ -837,15 +872,15 @@ export default function SandboxPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <label className="flex items-center gap-2 bg-white px-3 py-2 border-[2px] border-black rounded-lg cursor-pointer hover:bg-gray-50">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         checked={editConfigForm.guardrails.length === 6}
                         onChange={(e) => {
                           const allRules = ["stayOnTopic", "noHarmfulContent", "jailbreakResistance", "noCompetitors", "mandatoryDisclaimer", "noPersonalOpinions"];
                           if (e.target.checked) {
-                            setEditConfigForm({...editConfigForm, guardrails: allRules});
+                            setEditConfigForm({ ...editConfigForm, guardrails: allRules });
                           } else {
-                            setEditConfigForm({...editConfigForm, guardrails: []});
+                            setEditConfigForm({ ...editConfigForm, guardrails: [] });
                           }
                         }}
                         className="w-4 h-4"
@@ -854,14 +889,14 @@ export default function SandboxPage() {
                     </label>
                     {["stayOnTopic", "noHarmfulContent", "jailbreakResistance", "noCompetitors", "mandatoryDisclaimer", "noPersonalOpinions"].map(rule => (
                       <label key={rule} className="flex items-center gap-2 bg-white px-3 py-2 border-[2px] border-black rounded-lg cursor-pointer hover:bg-gray-50">
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           checked={editConfigForm.guardrails.includes(rule)}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setEditConfigForm({...editConfigForm, guardrails: [...editConfigForm.guardrails, rule]});
+                              setEditConfigForm({ ...editConfigForm, guardrails: [...editConfigForm.guardrails, rule] });
                             } else {
-                              setEditConfigForm({...editConfigForm, guardrails: editConfigForm.guardrails.filter(r => r !== rule)});
+                              setEditConfigForm({ ...editConfigForm, guardrails: editConfigForm.guardrails.filter(r => r !== rule) });
                             }
                           }}
                           className="w-4 h-4"
@@ -882,15 +917,15 @@ export default function SandboxPage() {
                         "flex items-center gap-2 px-3 py-2 border-[2px] border-black rounded-lg cursor-pointer transition-colors",
                         (editConfigForm.tools || []).includes(tool) ? "bg-[#FFD84D]" : "bg-white hover:bg-gray-50"
                       )}>
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           checked={(editConfigForm.tools || []).includes(tool)}
                           onChange={(e) => {
                             const currentTools = editConfigForm.tools || [];
                             if (e.target.checked) {
-                              setEditConfigForm({...editConfigForm, tools: [...currentTools, tool]});
+                              setEditConfigForm({ ...editConfigForm, tools: [...currentTools, tool] });
                             } else {
-                              setEditConfigForm({...editConfigForm, tools: currentTools.filter(t => t !== tool)});
+                              setEditConfigForm({ ...editConfigForm, tools: currentTools.filter(t => t !== tool) });
                             }
                           }}
                           className="w-4 h-4"
@@ -949,11 +984,11 @@ export default function SandboxPage() {
 
                 <div>
                   <h3 className="font-bold mb-2">Integration Methods</h3>
-                  
+
                   <div className="bg-black text-white p-4 rounded-lg border-[3px] border-black overflow-x-auto relative mt-2 group">
                     <div className="text-xs text-gray-400 mb-2">cURL Request</div>
                     <pre className="font-mono text-sm whitespace-pre-wrap">
-{`curl -X POST http://localhost:8000/v1/${agentId || 'YOUR_AGENT_ID'}/chat \\
+                      {`curl -X POST http://localhost:8000/v1/${agentId || 'YOUR_AGENT_ID'}/chat \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer ${apiKey || 'YOUR_API_KEY'}" \\
   -d '{
@@ -966,7 +1001,7 @@ export default function SandboxPage() {
                   <div className="bg-white mt-4 p-4 rounded-lg border-[2px] border-black overflow-x-auto relative group">
                     <div className="text-xs text-gray-500 mb-2 font-bold">JavaScript / TypeScript Fetch</div>
                     <pre className="font-mono text-sm whitespace-pre-wrap text-black">
-{`const response = await fetch("http://localhost:8000/v1/${agentId || 'YOUR_AGENT_ID'}/chat", {
+                      {`const response = await fetch("http://localhost:8000/v1/${agentId || 'YOUR_AGENT_ID'}/chat", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",

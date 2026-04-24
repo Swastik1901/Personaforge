@@ -5,14 +5,14 @@ import { getToken } from 'next-auth/jwt'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB()
 
-    const token = await getToken({ 
-      req: request, 
-      secret: process.env.NEXTAUTH_SECRET 
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET
     })
 
     if (!token || !token.userId) {
@@ -22,7 +22,7 @@ export async function PATCH(
       )
     }
 
-    const { id } = params
+    const { id } = await params
     const updates = await request.json()
 
     // Find the agent and verify ownership
@@ -51,9 +51,9 @@ export async function PATCH(
 
     await agent.save()
 
-    return NextResponse.json({ 
-      message: 'Agent updated successfully', 
-      agent 
+    return NextResponse.json({
+      message: 'Agent updated successfully',
+      agent
     })
 
   } catch (error: any) {

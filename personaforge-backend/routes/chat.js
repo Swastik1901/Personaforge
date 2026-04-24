@@ -38,8 +38,11 @@ router.post('/:agentId/chat', async (req, res) => {
             return res.status(404).json({ error: "Agent not found" });
         }
 
+        console.log("[CHAT DEBUG] Agent record:", JSON.stringify(agent, null, 2));
         const enabledTools = Array.isArray(agent.tools) ? agent.tools : [];
+        console.log("[CHAT DEBUG] Enabled tools:", enabledTools);
         const canReadFiles = enabledTools.includes("Read File");
+        console.log("[CHAT DEBUG] Can read files:", canReadFiles);
 
         if (isFileRelatedMessage(message) && !canReadFiles) {
             return res.json({

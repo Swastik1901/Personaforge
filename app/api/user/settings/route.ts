@@ -11,8 +11,8 @@ import { authOptions } from "@/lib/auth-config-simple"
 async function getAuthenticatedUserId(request: NextRequest): Promise<string | null> {
   // 1. Try to get session from NextAuth (for web users)
   const session = await getServerSession(authOptions)
-  if (session?.user?.id) {
-    return session.user.id
+  if ((session?.user as any)?.id) {
+    return (session?.user as any).id
   }
 
   // 2. Fallback to custom JWT (for API/Mobile clients)

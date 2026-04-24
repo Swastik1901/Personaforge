@@ -29,7 +29,7 @@ export const authOptions: NextAuthOptions = {
 
         try {
           await connectDB()
-          
+
           const user = await User.findOne({ email: credentials.email })
           if (!user) {
             return null
@@ -65,10 +65,10 @@ export const authOptions: NextAuthOptions = {
       if (account?.provider === "google" || account?.provider === "github") {
         try {
           await connectDB()
-          
+
           // Check if user already exists in our custom User model
           let existingUser = await User.findOne({ email: user.email })
-          
+
           if (!existingUser) {
             // Create new user for OAuth
             existingUser = await User.create({
@@ -119,9 +119,9 @@ export const authOptions: NextAuthOptions = {
           }
         } else {
           // For credentials provider
-          token.plan = user.plan
-          token.isVerified = user.isVerified
-          token.agentsCreated = user.agentsCreated
+          token.plan = (user as any).plan
+          token.isVerified = (user as any).isVerified
+          token.agentsCreated = (user as any).agentsCreated
           token.userId = user.id
         }
       }
@@ -129,10 +129,10 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.userId as string || token.sub!
-        session.user.plan = (token.plan as string) || "starter"
-        session.user.isVerified = (token.isVerified as boolean) || true
-        session.user.agentsCreated = (token.agentsCreated as number) || 0
+        (session.user as any).id = token.userId as string || token.sub!;
+        (session.user as any).plan = (token.plan as string) || "starter";
+        (session.user as any).isVerified = (token.isVerified as boolean) || true;
+        (session.user as any).agentsCreated = (token.agentsCreated as number) || 0;
       }
       return session
     }
