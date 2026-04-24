@@ -31,7 +31,6 @@ router.post('/', async (req, res) => {
             memory: memory !== false // Default true, or store exactly what was sent
         };
 
-        console.log("[FORGE DEBUG] Created agent record:", JSON.stringify(agentRecord, null, 2));
         agentsDb.set(agentId, agentRecord);
 
         return res.status(201).json(agentRecord);

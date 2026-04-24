@@ -204,15 +204,12 @@ export default function SandboxPage() {
     const initAgent = async () => {
       setLogs(prev => [...prev, { id: Date.now() + Math.random(), type: "info", message: "Forging new agent...", timestamp: new Date().toLocaleTimeString() }])
       try {
-        console.log("[REACT DEBUG] Forging config:", config);
-        console.log("[REACT DEBUG] Config tools:", config.tools);
         const res = await fetch("http://localhost:8000/forge", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(config)
         })
         const data = await res.json()
-        console.log("[REACT DEBUG] Forge response:", data);
         if (data.agentId) {
           setAgentId(data.agentId)
           if (data.apiKey) setApiKey(data.apiKey)
@@ -378,7 +375,6 @@ export default function SandboxPage() {
       }
 
       setUploadedFiles(prev => [...prev, uploadedFile])
-      setInputValue(`Read this file and summarize it: ${data.file_path}`)
       setLogs(prev => [
         ...prev,
         { id: Date.now() + Math.random(), type: "success", message: `${file.name} attached`, timestamp: new Date().toLocaleTimeString() }
