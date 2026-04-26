@@ -7,6 +7,42 @@ import { chatWithPersona } from '../services/claude.js';
 
 const router = Router();
 
+/**
+ * Helper function to detect generic assistant responses
+ * Returns true if response appears to be generic/non-persona
+ */
+function detectGenericResponse(response, domain) {
+    const genericPatterns = [
+        /^(hello|hi|hey)[!.]?\s+(i'm|i am)\s+(claude|an ai|a language model|an assistant)/i,
+        /^(i'm|i am)\s+(claude|an ai|a language model|an assistant)/i,
+        /how can i (help|assist) you today\?$/i,
+        /^(sure|of course|certainly)[!,.]?\s+i('d| would) be (happy|glad) to help/i,
+        /as an ai (assistant|language model)/i,
+        /i don't have personal (opinions|feelings|experiences)/i,
+    ];
+
+    const lowerResponse = response.toLowerCase();
+    
+    // Check for generic patterns
+    for (const pattern of genericPatterns) {
+        if (pattern.test(response)) {
+            return true;
+        }
+    }
+    
+    // Check if domain is mentioned at all in first 100 chars (should be for greetings)
+    if (domain && response.length < 200) {
+        const domainLower = domain.toLowerCase();
+        const firstPart = lowerResponse.substring(0, 100);
+        if (!firstPart.includes(domainLower)) {
+            // Domain not mentioned in opening - likely generic
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 function isFileRelatedMessage(message) {
     return /\b(file|document|upload|uploaded|attachment|attached|read|open|summari[sz]e|analy[sz]e|json|csv|txt|md|report)\b/i.test(message);
 }
@@ -53,14 +89,17 @@ router.post('/:agentId/chat', async (req, res) => {
         // 1. Get Memory
         const history = await getHistory(session_id);
 
-        // 2. Input Guardrail
+        // 2. Input Guardrail (safety check only, NOT domain filtering)
         const inputCheck = await runGuardrails(message, "", agent.domain, agent.guardrails);
         if (inputCheck.blocked) {
+            // Only block if truly unsafe (harmful content), not domain-related
             return res.json({ message: inputCheck.reply, blocked: true, session_id });
         }
 
-        // 3. Build format and query Claude
+        // 3. Build system prompt and ALWAYS structure user input (no filtering)
         const fullSystemPrompt = buildSystemPrompt(agent.systemPrompt, agent.domain, agent.guardrails, enabledTools);
+        
+        // CRITICAL: ALL user inputs are structured, regardless of intent
         let structuredMessage = buildStructuredPrompt(message, agent.domain);
 
         if (canReadFiles && attachedFiles.length > 0) {
@@ -72,19 +111,64 @@ router.post('/:agentId/chat', async (req, res) => {
 
         let reply = await chatWithPersona(fullSystemPrompt, history, structuredMessage, enabledTools);
 
-        // 4. Output Guardrail (validation before response)
+        // Pre-validation: Quick check for generic responses
+        if (detectGenericResponse(reply, agent.domain)) {
+            console.log("⚠️ Generic response detected - Regenerating immediately");
+            const stricterSystemPrompt = fullSystemPrompt + `
+
+====== IMMEDIATE CORRECTION REQUIRED ======
+Your response was too generic and did not reflect your ${agent.domain} specialization.
+
+MANDATORY REQUIREMENTS:
+1. Start by establishing your identity as a ${agent.domain} specialist
+2. Use ${agent.domain}-specific terminology and context
+3. Frame everything within ${agent.domain} expertise
+4. Do NOT sound like a general AI assistant
+5. If asked "what can you do?", explain ${agent.domain} capabilities specifically
+6. Use soft, friendly redirection for off-topic queries (NOT hard rejection)
+
+REGENERATE NOW with strong ${agent.domain} persona.`;
+            
+            reply = await chatWithPersona(stricterSystemPrompt, history, structuredMessage, enabledTools);
+        }
+
+        // 4. Output Guardrail (validates persona adherence, NOT domain relevance of input)
         const outputCheck = await runGuardrails(message, reply, agent.domain, agent.guardrails);
 
         // If out of domain/blocked on output -> Regenerate with stricter constraint
         if (outputCheck.blocked) {
-            console.log("Output guardrail triggered. Regenerating response...");
-            const stricterSystemPrompt = fullSystemPrompt + "\nCRITICAL: You failed validation. You MUST act purely within your domain and avoid giving generic, unhelpful, or out-of-character responses. Try again.";
+            console.log("⚠️ Output guardrail triggered - Response failed persona adherence check");
+            console.log("Regenerating with enhanced persona enforcement...");
+            
+            const stricterSystemPrompt = fullSystemPrompt + `
+
+====== REGENERATION NOTICE ======
+⚠️ YOUR PREVIOUS RESPONSE FAILED VALIDATION ⚠️
+
+Failure Reason: Response did not maintain strict ${agent.domain} persona integrity.
+
+CORRECTIVE INSTRUCTIONS:
+1. You MUST respond as a ${agent.domain} specialist ONLY
+2. Do NOT provide generic, general-purpose assistant responses
+3. If the user asked "what can you do?", explain ${agent.domain} capabilities specifically
+4. If the user's input was a simple greeting, respond with a ${agent.domain}-focused greeting
+5. If the user's input was off-topic, use SOFT, FRIENDLY redirection (NOT hard rejection)
+6. Every word must reflect your specialized ${agent.domain} expertise
+7. Be helpful and conversational while maintaining persona
+8. Think: "How would a real ${agent.domain} professional respond to this?"
+
+REGENERATE YOUR RESPONSE NOW with strict adherence to your ${agent.domain} persona.`;
+
             reply = await chatWithPersona(stricterSystemPrompt, history, structuredMessage, enabledTools);
 
-            // Secondary check (optional fail-safe)
+            // Secondary check (fail-safe)
             const secondCheck = await runGuardrails(message, reply, agent.domain, agent.guardrails);
             if (secondCheck.blocked) {
-                return res.json({ message: "I apologize, but I am unable to provide a response to that within my domain expertise.", blocked: true, session_id });
+                console.log("❌ Second validation failed - Using fallback response");
+                // Provide a helpful, domain-specific fallback
+                reply = `I'm here to help with ${agent.domain}-related questions and topics. What specific aspect of ${agent.domain} would you like to explore?`;
+            } else {
+                console.log("✅ Regenerated response passed validation");
             }
         }
 
