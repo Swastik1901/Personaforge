@@ -169,18 +169,13 @@ export default function DashboardPage() {
     router.push('/deploy')
   }
 
-  // Show loading while checking auth
-  if (loading) {
+  // Show loading while checking auth or if no user yet (prevents flash)
+  if (loading || !user) {
     return (
       <div className="h-screen bg-[#FDF3B1] flex items-center justify-center">
         <div className="text-2xl font-black">Loading...</div>
       </div>
     )
-  }
-
-  // Don't render if no user
-  if (!user) {
-    return null
   }
 
   const navItems = [
