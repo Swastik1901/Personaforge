@@ -22,6 +22,7 @@ import {
 } from "lucide-react"
 
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/AuthContext"
 
 function cn(...classes: (string | undefined | null | boolean)[]): string {
   return classes.filter(Boolean).join(" ")
@@ -108,7 +109,8 @@ export default function DeployPage() {
     tone: "Friendly",
     expertise: "General Support",
     description: "You are a helpful AI assistant.",
-    guardrails: ["stayOnTopic", "noHarmfulContent"]
+    guardrails: ["stayOnTopic", "noHarmfulContent"],
+    tools: [] as string[]
   })
 
   const router = useRouter()
@@ -154,6 +156,7 @@ PersonaForge.init({
     router.push('/sandbox')
   }
 
+  const { token } = useAuth()
   const handleDeploy = async () => {
     setIsDeploying(true)
     try {
@@ -166,6 +169,19 @@ PersonaForge.init({
       if (data.agentId) {
         setDeployAgentId(data.agentId)
         if (data.apiKey) setDeployApiKey(data.apiKey)
+
+        // Increment deployment count in DB
+        const targetId = (config as any).id
+        if (targetId && token) {
+          await fetch(`/api/agents/${targetId}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ isDeployed: true })
+          })
+        }
       }
     } catch (e) {
       console.error("Failed to deploy agent to backend", e)

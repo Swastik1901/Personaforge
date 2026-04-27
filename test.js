@@ -1,13 +1,13 @@
-const response = await fetch("http://localhost:8000/v1/43c6abd9-0a72-4e2a-868c-5161fc6a249e/chat", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Authorization": "Bearer pf_43b58a992d924591b5b7"
-  },
-  body: JSON.stringify({
-    message: "Hello there!",
-    session_id: "user-session-123"
-  })
+const response = await fetch("http://localhost:8000/v1/3fac33aa-fe95-4582-96a5-88b693e7f357/chat", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer pf_024b439b4f2f4572ac51"
+    },
+    body: JSON.stringify({
+        message: "Can you search on web for me for irregular periods?",
+        session_id: "user-session-123"
+    })
 });
 const data = await response.json();
 console.log(data.message);

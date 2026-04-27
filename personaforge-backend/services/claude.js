@@ -1,8 +1,10 @@
 import { ChatGroq } from "@langchain/groq";
-import { ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { RunnableSequence } from "@langchain/core/runnables";
 import { StringOutputParser } from "@langchain/core/output_parsers";
-import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
+import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import { readFileTool } from "./readFileTool.js";
 
 /**
  * Function 1 — forgePersona
@@ -44,11 +46,14 @@ Return: {{ "name": "...", "systemPrompt": "...", "domain": "...", "sampleReply":
 /**
  * Function 2 — chatWithPersona
  */
-export async function chatWithPersona(systemPrompt, history, userMessage) {
+export async function chatWithPersona(systemPrompt, history, userMessage, enabledTools = []) {
     const model = new ChatGroq({
         model: "llama-3.3-70b-versatile",
         temperature: 0.7,
     });
+    const tools = Array.isArray(enabledTools) && enabledTools.includes("Read File")
+        ? [readFileTool]
+        : [];
 
     // Formatting history from generic {role, content} to Langchain message objects
     const formattedHistory = history.map(msg => {
@@ -57,24 +62,23 @@ export async function chatWithPersona(systemPrompt, history, userMessage) {
         return new AIMessage(msg.content);
     });
 
-    const prompt = ChatPromptTemplate.fromMessages([
-        ["system", systemPrompt],
-        new MessagesPlaceholder("history"),
-        ["human", "{userMessage}"]
-    ]);
-
-    const chain = RunnableSequence.from([
-        prompt,
-        model,
-        new StringOutputParser()
-    ]);
-
-    const res = await chain.invoke({
-        history: formattedHistory,
-        userMessage
+    const agent = createReactAgent({
+        llm: model,
+        tools,
+        prompt: systemPrompt
     });
 
-    return res;
+    const result = await agent.invoke({
+        messages: [
+            ...formattedHistory,
+            new HumanMessage(userMessage)
+        ]
+    });
+
+    const lastMessage = result.messages[result.messages.length - 1];
+    return typeof lastMessage.content === "string"
+        ? lastMessage.content
+        : JSON.stringify(lastMessage.content);
 }
 
 /**

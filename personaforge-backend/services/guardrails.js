@@ -26,7 +26,7 @@ function keywordCheck(message) {
 }
 
 /**
- * Layer 2 — claudeJudgeInput
+ * Layer 2 — claudeJudgeInput (Soft validation - checks safety, NOT domain relevance)
  */
 async function claudeJudgeInput(message, domain) {
     try {
@@ -37,78 +37,102 @@ async function claudeJudgeInput(message, domain) {
         return { safe: true };
     } catch (e) {
         console.error("claudeJudgeInput error:", e);
-        // Fail open or fail closed? Let's fail open to prevent breaking everything if API fails,
-        // or fail safe (false). We will fail open as it's common unless strictly safe.
-        // Actually, returning true to let it through Layer 3 is usually safer for UX, but I'll return true.
+        // Fail open to prevent breaking UX if API fails
         return { safe: true };
     }
 }
 
 /**
- * Layer 3 — claudeJudgeOutput
+ * Layer 3 — claudeJudgeOutput (Enhanced with Domain Alignment Check)
+ * Validates response quality, NOT input relevance
  */
-async function claudeJudgeOutput(response, rules) {
-    if (!rules || rules.length === 0) return { safe: true };
-
+async function claudeJudgeOutput(response, rules, domain) {
     try {
         const model = new ChatGroq({
             model: "llama-3.1-8b-instant",
             temperature: 0,
         });
-        
-        const promptText = `Does the following response follow all of these rules?
+
+        const promptText = `You are a strict compliance validator. Evaluate if the response maintains persona integrity.
+
+Domain: {domain}
 Rules: {rules}
-Response: {response}
+Response to evaluate: {response}
+
+Validation Criteria:
+1. Does the response maintain the ${domain} specialist persona?
+2. Does the response demonstrate specialized expertise (not generic advice)?
+3. Does the response follow all specified rules?
+4. Does the response avoid generic assistant behavior?
+5. If the user asked about capabilities, did the agent explain ${domain}-specific capabilities?
+6. If the user input was off-topic, did the agent use SOFT redirection (friendly, helpful)?
+
+A response is UNSAFE if:
+- It provides generic assistant responses instead of domain-specific guidance
+- It acts like a general-purpose AI
+- It gives generic capabilities when asked "what can you do?"
+- It breaks any specified rules
+- It fails to maintain the specialized persona
+- It uses HARD rejection language like "I can't help with that" without offering alternatives
+
+A response is SAFE if:
+- It maintains ${domain} persona even for meta questions
+- It uses soft, friendly redirection for off-topic queries
+- It explains ${domain} capabilities when asked
+- It's helpful and conversational while staying in character
+
 Reply with ONLY one word: SAFE or UNSAFE`;
 
         const prompt = ChatPromptTemplate.fromTemplate(promptText);
-        
+
         const chain = RunnableSequence.from([
             prompt,
             model,
             new StringOutputParser()
         ]);
-        
+
         const res = await chain.invoke({
-            rules: compileGuardrails(rules),
+            domain: domain || 'General',
+            rules: compileGuardrails(rules) || 'None',
             response
         });
-        
+
         if (res.trim().toUpperCase().includes("UNSAFE")) {
             return { safe: false };
         }
         return { safe: true };
     } catch (e) {
         console.error("claudeJudgeOutput error:", e);
-        return { safe: true };
+        return { safe: true }; // Fail-safe
     }
 }
 
 /**
  * Main function — runGuardrails
+ * Validates safety and persona adherence, does NOT reject based on domain relevance
  */
 export async function runGuardrails(userMessage, agentResponse, domain, rules) {
     // If testing input only (agentResponse is empty), skip output judge
-    
-    // 1. Layer 1 keyword check on user input
+
+    // 1. Layer 1 keyword check on user input (safety only)
     if (userMessage) {
         const l1 = keywordCheck(userMessage);
         if (!l1.safe) {
             return { blocked: true, layer: "keyword", reply: "I can't help with that request." };
         }
-        
-        // 2. Layer 2 input judge
+
+        // 2. Layer 2 input judge (safety only, NOT domain filtering)
         const l2 = await claudeJudgeInput(userMessage, domain);
         if (!l2.safe) {
-            return { blocked: true, layer: "input", reply: "That's outside what I can help with." };
+            return { blocked: true, layer: "input", reply: "I'm here to help with safe and constructive queries. What would you like to know?" };
         }
     }
 
-    // 3. Layer 3 output judge
+    // 3. Layer 3 output judge (Check persona adherence and response quality)
     if (agentResponse) {
-        const l3 = await claudeJudgeOutput(agentResponse, rules);
+        const l3 = await claudeJudgeOutput(agentResponse, rules, domain);
         if (!l3.safe) {
-            return { blocked: true, layer: "output", reply: "I can't provide a response to that." };
+            return { blocked: true, layer: "output", reply: agentResponse };
         }
     }
 

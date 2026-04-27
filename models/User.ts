@@ -10,6 +10,12 @@ export interface IUser extends Document {
   plan: 'starter' | 'pro' | 'enterprise'
   agentsCreated: number
   lastLogin?: Date
+  smtpConfig?: {
+    host: string
+    port: number
+    user: string
+    pass: string
+  }
 }
 
 const UserSchema = new Schema<IUser>({
@@ -47,6 +53,12 @@ const UserSchema = new Schema<IUser>({
   },
   lastLogin: {
     type: Date
+  },
+  smtpConfig: {
+    host: { type: String, default: '' },
+    port: { type: Number, default: 465 },
+    user: { type: String, default: '' },
+    pass: { type: String, default: '' }
   }
 }, {
   timestamps: true

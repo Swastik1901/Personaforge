@@ -10,17 +10,30 @@ export async function GET(request: NextRequest) {
     await connectDB()
 
     const authHeader = request.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json(
-        { error: 'Authorization token required' },
-        { status: 401 }
-      )
+    let userId: string
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1]
+      const decoded = verifyToken(token)
+      userId = decoded.userId
+    } else {
+      // Fallback to session
+      const { getToken } = await import('next-auth/jwt')
+      const token = await getToken({ 
+        req: request,
+        secret: process.env.NEXTAUTH_SECRET 
+      })
+
+      if (!token || !token.userId) {
+        return NextResponse.json(
+          { error: 'Authorization required' },
+          { status: 401 }
+        )
+      }
+      userId = token.userId as string
     }
 
-    const token = authHeader.split(' ')[1]
-    const decoded = verifyToken(token)
-
-    const agents = await Agent.find({ userId: decoded.userId })
+    const agents = await Agent.find({ userId })
       .sort({ createdAt: -1 })
       .select('-__v')
 
@@ -41,15 +54,28 @@ export async function POST(request: NextRequest) {
     await connectDB()
 
     const authHeader = request.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json(
-        { error: 'Authorization token required' },
-        { status: 401 }
-      )
-    }
+    let userId: string
 
-    const token = authHeader.split(' ')[1]
-    const decoded = verifyToken(token)
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1]
+      const decoded = verifyToken(token)
+      userId = decoded.userId
+    } else {
+      // Fallback to session
+      const { getToken } = await import('next-auth/jwt')
+      const token = await getToken({ 
+        req: request,
+        secret: process.env.NEXTAUTH_SECRET 
+      })
+
+      if (!token || !token.userId) {
+        return NextResponse.json(
+          { error: 'Authorization required' },
+          { status: 401 }
+        )
+      }
+      userId = token.userId as string
+    }
 
     const {
       name,
@@ -59,6 +85,7 @@ export async function POST(request: NextRequest) {
       domain,
       responseStyle,
       guardrails,
+      tools,
       memoryMode,
       responseLength,
       safetyFilters
@@ -73,7 +100,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check user's plan limits
-    const user = await User.findById(decoded.userId)
+    const user = await User.findById(userId)
     if (!user) {
       return NextResponse.json(
         { error: 'User not found' },
@@ -81,7 +108,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const agentCount = await Agent.countDocuments({ userId: decoded.userId })
+    const agentCount = await Agent.countDocuments({ userId })
     
     // Plan limits
     const planLimits = {
@@ -99,7 +126,7 @@ export async function POST(request: NextRequest) {
 
     // Create agent
     const agent = await Agent.create({
-      userId: decoded.userId,
+      userId,
       name,
       description,
       systemPrompt,
@@ -107,6 +134,7 @@ export async function POST(request: NextRequest) {
       domain,
       responseStyle,
       guardrails: guardrails || [],
+      tools: tools || [],
       memoryMode: memoryMode || 'session',
       responseLength: responseLength || 'medium',
       safetyFilters: safetyFilters !== undefined ? safetyFilters : true
@@ -128,6 +156,7 @@ export async function POST(request: NextRequest) {
         memoryMode: agent.memoryMode,
         responseLength: agent.responseLength,
         safetyFilters: agent.safetyFilters,
+        tools: agent.tools,
         isDeployed: agent.isDeployed,
         createdAt: agent.createdAt
       }
