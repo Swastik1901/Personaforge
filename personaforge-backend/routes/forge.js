@@ -16,12 +16,9 @@ router.post('/', async (req, res) => {
         const config = await forgePersona(description, tone, guardrails);
 
         const agentId = crypto.randomUUID();
-        const apiKeyChars = crypto.randomUUID().replace(/-/g, "").slice(0, 32);
-        const apiKey = `sk_${apiKeyChars}`;
 
         const agentRecord = {
             agentId,
-            apiKey,
             name: config.name,
             systemPrompt: config.systemPrompt,
             domain: config.domain,

@@ -127,7 +127,6 @@ export default function SandboxPage() {
   const [isTyping, setIsTyping] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const [agentId, setAgentId] = useState<string | null>(null)
-  const [apiKey, setApiKey] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState(() => "session-" + Math.random().toString(36).substring(2, 9))
   const [mounted, setMounted] = useState(false)
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
@@ -244,7 +243,6 @@ export default function SandboxPage() {
         const data = await res.json()
         if (data.agentId) {
           setAgentId(data.agentId)
-          if (data.apiKey) setApiKey(data.apiKey)
           setLogs(prev => [...prev, { id: Date.now() + Math.random(), type: "success", message: "Agent forged successfully", timestamp: new Date().toLocaleTimeString() }])
         } else {
           setLogs(prev => [...prev, { id: Date.now() + Math.random(), type: "warning", message: "Failed to forge agent", timestamp: new Date().toLocaleTimeString() }])
@@ -1048,28 +1046,52 @@ export default function SandboxPage() {
 
               <div className="space-y-6">
                 <div>
-                  <h3 className="font-bold mb-2">Your API Keys</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white p-3 border-[2px] border-black rounded-lg hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-shadow">
-                      <div className="text-xs text-gray-500 font-bold mb-1">AGENT ID</div>
-                      <div className="font-mono text-sm break-all">{agentId || "Loading..."}</div>
-                    </div>
-                    <div className="bg-white p-3 border-[2px] border-black rounded-lg hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-shadow">
-                      <div className="text-xs text-gray-500 font-bold mb-1">API KEY</div>
-                      <div className="font-mono text-sm break-all">{apiKey || "Loading..."}</div>
-                    </div>
+                  <h3 className="font-bold mb-2">Agent ID</h3>
+                  <div className="bg-white p-4 border-[3px] border-black rounded-lg hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-shadow">
+                    <div className="text-xs text-gray-500 font-bold mb-1">AGENT ID</div>
+                    <div className="font-mono text-sm break-all">{agentId || "Loading..."}</div>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-2">
+                    Use this Agent ID to invoke your agent via API
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-bold mb-2">API Authentication</h3>
+                  <div className="bg-[#FFE8B1] p-4 border-[3px] border-black rounded-lg">
+                    <p className="text-sm font-bold mb-2">🔑 API Key Required</p>
+                    <p className="text-xs">
+                      Generate an API key from the <span className="font-bold">API Keys</span> page in the sidebar to authenticate your requests.
+                    </p>
                   </div>
                 </div>
 
                 <div>
                   <h3 className="font-bold mb-2">Integration Methods</h3>
 
-                  <div className="bg-black text-white p-4 rounded-lg border-[3px] border-black overflow-x-auto relative mt-2 group">
-                    <div className="text-xs text-gray-400 mb-2">cURL Request</div>
+                  <div className="bg-[#1e1e1e] text-white p-4 rounded-lg border-[3px] border-black overflow-x-auto relative mt-2 group">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="text-xs text-gray-400">cURL Request</div>
+                      <button
+                        onClick={() => {
+                          const code = `curl -X POST http://localhost:8000/v1/${agentId || 'YOUR_AGENT_ID'}/chat \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer <API-Token>" \\
+  -d '{
+    "message": "Hello there!",
+    "session_id": "user-session-123"
+  }'`;
+                          navigator.clipboard.writeText(code);
+                        }}
+                        className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded border border-gray-600 transition-colors"
+                      >
+                        Copy
+                      </button>
+                    </div>
                     <pre className="font-mono text-sm whitespace-pre-wrap">
                       {`curl -X POST http://localhost:8000/v1/${agentId || 'YOUR_AGENT_ID'}/chat \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer ${apiKey || 'YOUR_API_KEY'}" \\
+  -H "Authorization: Bearer <API-Token>" \\
   -d '{
     "message": "Hello there!",
     "session_id": "user-session-123"
@@ -1077,14 +1099,37 @@ export default function SandboxPage() {
                     </pre>
                   </div>
 
-                  <div className="bg-white mt-4 p-4 rounded-lg border-[2px] border-black overflow-x-auto relative group">
-                    <div className="text-xs text-gray-500 mb-2 font-bold">JavaScript / TypeScript Fetch</div>
+                  <div className="bg-white mt-4 p-4 rounded-lg border-[3px] border-black overflow-x-auto relative group">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="text-xs text-gray-500 font-bold">JavaScript / TypeScript Fetch</div>
+                      <button
+                        onClick={() => {
+                          const code = `const response = await fetch("http://localhost:8000/v1/${agentId || 'YOUR_AGENT_ID'}/chat", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer <API-Token>"
+  },
+  body: JSON.stringify({
+    message: "Hello there!",
+    session_id: "user-session-123"
+  })
+});
+const data = await response.json();
+console.log(data.message);`;
+                          navigator.clipboard.writeText(code);
+                        }}
+                        className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded border-[2px] border-black transition-colors font-bold"
+                      >
+                        Copy
+                      </button>
+                    </div>
                     <pre className="font-mono text-sm whitespace-pre-wrap text-black">
                       {`const response = await fetch("http://localhost:8000/v1/${agentId || 'YOUR_AGENT_ID'}/chat", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    "Authorization": "Bearer ${apiKey || 'YOUR_API_KEY'}"
+    "Authorization": "Bearer <API-Token>"
   },
   body: JSON.stringify({
     message: "Hello there!",

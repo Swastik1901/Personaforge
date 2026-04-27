@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { agentsDb } from './forge.js';
 import { getHistory, saveHistory } from '../services/memory.js';
-import { runGuardrails } from '../services/guardrails.js';
 import { buildSystemPrompt, buildStructuredPrompt } from '../services/promptBuilder.js';
 import { chatWithPersona } from '../services/ai.js';
+import { authenticateApiKey } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -59,7 +59,7 @@ function normalizeAttachedFiles(files) {
         }));
 }
 
-router.post('/:agentId/chat', async (req, res) => {
+router.post('/:agentId/chat', authenticateApiKey, async (req, res) => {
     try {
         const { agentId } = req.params;
         const { message, session_id } = req.body;

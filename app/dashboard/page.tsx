@@ -183,6 +183,7 @@ export default function DashboardPage() {
     { id: "create", label: "Create Agent", icon: <Sparkles className="w-5 h-5" />, href: "/create-agent" },
     { id: "deployments", label: "Deployments", icon: <Rocket className="w-5 h-5" />, href: "/deploy" },
     { id: "sandbox", label: "Sandbox Testing", icon: <TestTube className="w-5 h-5" />, href: "/sandbox" },
+    { id: "api-keys", label: "API Keys", icon: <Zap className="w-5 h-5" />, href: "/api-keys" },
     { id: "settings", label: "Settings", icon: <Settings className="w-5 h-5" />, href: "/settings" },
   ]
 
