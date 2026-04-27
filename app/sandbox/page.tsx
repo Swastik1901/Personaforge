@@ -568,7 +568,7 @@ export default function SandboxPage() {
           
           <Button onClick={() => setIsDeployModalOpen(true)}>
             <Rocket className="w-4 h-4 mr-2" />
-            Deploy Agent
+            Get API
           </Button>
         </div>
       </header>
@@ -1040,7 +1040,7 @@ export default function SandboxPage() {
               className="bg-[#FFF4E2] border-[3px] border-black p-6 rounded-xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] w-full max-w-2xl max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-black">Deploy Your Agent</h2>
+                <h2 className="text-2xl font-black">Get API Keys</h2>
                 <button onClick={() => setIsDeployModalOpen(false)} className="hover:bg-black/5 p-1 rounded">
                   <X className="w-6 h-6" />
                 </button>
