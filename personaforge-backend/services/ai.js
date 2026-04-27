@@ -11,7 +11,7 @@ import { readFileTool } from "./readFileTool.js";
  */
 export async function forgePersona(description, tone, guardrails) {
     const model = new ChatGoogleGenerativeAI({
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         temperature: 0.7,
         apiKey: process.env.GOOGLE_API_KEY,
     });
@@ -36,7 +36,15 @@ Return: {{ "name": "...", "systemPrompt": "...", "domain": "...", "sampleReply":
     });
 
     try {
-        const parsed = JSON.parse(res.trim());
+        // Remove markdown code blocks if present
+        let cleanedRes = res.trim();
+        if (cleanedRes.startsWith('```json')) {
+            cleanedRes = cleanedRes.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+        } else if (cleanedRes.startsWith('```')) {
+            cleanedRes = cleanedRes.replace(/```\n?/g, '');
+        }
+        
+        const parsed = JSON.parse(cleanedRes.trim());
         return parsed;
     } catch (e) {
         console.error("Failed to parse JSON from Gemini:", res);
@@ -49,13 +57,12 @@ Return: {{ "name": "...", "systemPrompt": "...", "domain": "...", "sampleReply":
  */
 export async function chatWithPersona(systemPrompt, history, userMessage, enabledTools = []) {
     const model = new ChatGoogleGenerativeAI({
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         temperature: 0.7,
         apiKey: process.env.GOOGLE_API_KEY,
     });
-    const tools = Array.isArray(enabledTools) && enabledTools.includes("Read File")
-        ? [readFileTool]
-        : [];
+    
+    const hasReadFileTool = Array.isArray(enabledTools) && enabledTools.includes("Read File");
 
     // Formatting history from generic {role, content} to Langchain message objects
     const formattedHistory = history.map(msg => {
@@ -64,23 +71,43 @@ export async function chatWithPersona(systemPrompt, history, userMessage, enable
         return new AIMessage(msg.content);
     });
 
-    const agent = createReactAgent({
-        llm: model,
-        tools,
-        prompt: systemPrompt
-    });
+    // If tools are enabled, use agent with tools
+    if (hasReadFileTool) {
+        try {
+            const agent = createReactAgent({
+                llm: model,
+                tools: [readFileTool],
+                prompt: systemPrompt
+            });
 
-    const result = await agent.invoke({
-        messages: [
-            ...formattedHistory,
-            new HumanMessage(userMessage)
-        ]
-    });
+            const result = await agent.invoke({
+                messages: [
+                    ...formattedHistory,
+                    new HumanMessage(userMessage)
+                ]
+            });
 
-    const lastMessage = result.messages[result.messages.length - 1];
-    return typeof lastMessage.content === "string"
-        ? lastMessage.content
-        : JSON.stringify(lastMessage.content);
+            const lastMessage = result.messages[result.messages.length - 1];
+            return typeof lastMessage.content === "string"
+                ? lastMessage.content
+                : JSON.stringify(lastMessage.content);
+        } catch (error) {
+            console.error("Agent with tools failed, falling back to simple chat:", error.message);
+            // Fall back to simple chat without tools
+        }
+    }
+
+    // Simple chat without tools (or fallback)
+    const messages = [
+        new HumanMessage(systemPrompt),
+        ...formattedHistory,
+        new HumanMessage(userMessage)
+    ];
+
+    const response = await model.invoke(messages);
+    return typeof response.content === "string"
+        ? response.content
+        : JSON.stringify(response.content);
 }
 
 /**
@@ -88,7 +115,7 @@ export async function chatWithPersona(systemPrompt, history, userMessage, enable
  */
 export async function judgeMessage(message, context) {
     const model = new ChatGoogleGenerativeAI({
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         temperature: 0,
         apiKey: process.env.GOOGLE_API_KEY,
     });

@@ -71,6 +71,8 @@ export default function CreateAgentPage() {
   const [selectedTools, setSelectedTools] = useState<string[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState("")
+  const [isSaved, setIsSaved] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
   
   const { user, token, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -144,6 +146,7 @@ export default function CreateAgentPage() {
     
     setIsSaving(true)
     setSaveError("")
+    setSaveSuccess(false)
     
     try {
       const headers: Record<string, string> = {
@@ -175,7 +178,10 @@ export default function CreateAgentPage() {
       const data = await response.json()
 
       if (response.ok) {
-        router.push('/dashboard')
+        setIsSaved(true)
+        setSaveSuccess(true)
+        // Auto-hide success message after 3 seconds
+        setTimeout(() => setSaveSuccess(false), 3000)
       } else {
         setSaveError(data.error || 'Failed to save agent')
       }
@@ -460,6 +466,17 @@ export default function CreateAgentPage() {
             <Card className="bg-[#5CC8FF]">
               <h3 className="text-lg font-black mb-4">Actions</h3>
               
+              {saveSuccess && (
+                <div className="p-3 bg-[#86EFAC] border-[3px] border-black rounded-lg mb-4 shadow-[4px_4px_0px_0px_rgba(34,197,94,1)] animate-pulse">
+                  <p className="text-black font-bold text-sm flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Agent saved successfully!
+                  </p>
+                </div>
+              )}
+              
               {saveError && (
                 <div className="p-3 bg-white border-[3px] border-red-500 rounded-lg mb-4 shadow-[4px_4px_0px_0px_rgba(239,68,68,1)]">
                   <p className="text-red-600 font-bold text-xs">{saveError}</p>
@@ -469,9 +486,13 @@ export default function CreateAgentPage() {
               <div className="space-y-3">
                 <Button 
                   variant="outline" 
-                  className="w-full bg-white" 
-                  disabled={!agentConfig}
+                  className={cn(
+                    "w-full bg-white",
+                    !isSaved && "cursor-not-allowed opacity-50"
+                  )}
+                  disabled={!agentConfig || !isSaved}
                   onClick={() => handleNavigateWithConfig('/sandbox')}
+                  title={!isSaved ? "Please save the agent first" : "Test in Sandbox"}
                 >
                   <TestTube className="w-4 h-4 mr-2" />
                   Test in Sandbox
@@ -483,7 +504,7 @@ export default function CreateAgentPage() {
                   onClick={handleSaveAgent}
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  {isSaving ? "Saving..." : "Save Agent"}
+                  {isSaving ? "Saving..." : isSaved ? "Saved ✓" : "Save Agent"}
                 </Button>
                 <Button 
                   className="w-full bg-[#FF7A00]" 

@@ -49,7 +49,7 @@ async function claudeJudgeInput(message, domain) {
 async function claudeJudgeOutput(response, rules, domain) {
     try {
         const model = new ChatGoogleGenerativeAI({
-            model: "gemini-2.0-flash-exp",
+            model: "gemini-2.5-flash",
             temperature: 0,
             apiKey: process.env.GOOGLE_API_KEY,
         });

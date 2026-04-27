@@ -132,6 +132,8 @@ export default function SandboxPage() {
   const [mounted, setMounted] = useState(false)
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [savedAgents, setSavedAgents] = useState<any[]>([])
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
 
   const [config, setConfig] = useState({
     name: "AI Assistant",
@@ -147,6 +149,26 @@ export default function SandboxPage() {
 
   useEffect(() => {
     setMounted(true)
+
+    // Fetch saved agents
+    const fetchAgents = async () => {
+      try {
+        const headers: Record<string, string> = {}
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+
+        const response = await fetch('/api/agents', { headers })
+        const data = await response.json()
+        if (response.ok) {
+          setSavedAgents(data.agents || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch agents:', error)
+      }
+    }
+
+    fetchAgents()
 
     // Check for pending config from create-agent
     let loadedConfig = config
@@ -167,6 +189,11 @@ export default function SandboxPage() {
         setConfig(newConfig)
         setEditConfigForm(newConfig)
         loadedConfig = newConfig
+        
+        // Set selected agent if ID exists
+        if (newConfig.id) {
+          setSelectedAgentId(newConfig.id)
+        }
         // keep pending config in localStorage so it persists on reload
       } catch (e) {
         console.error("Failed to parse pending config", e)
@@ -183,7 +210,7 @@ export default function SandboxPage() {
     ])
 
     setLogs([{ id: 1, type: "info", message: "Sandbox initializing...", timestamp: new Date().toLocaleTimeString() }])
-  }, [])
+  }, [token])
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -207,13 +234,20 @@ export default function SandboxPage() {
         const res = await fetch("http://localhost:8000/forge", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(config)
+          body: JSON.stringify({
+            description: config.description,
+            tone: config.tone,
+            guardrails: config.guardrails,
+            tools: config.tools
+          })
         })
         const data = await res.json()
         if (data.agentId) {
           setAgentId(data.agentId)
           if (data.apiKey) setApiKey(data.apiKey)
           setLogs(prev => [...prev, { id: Date.now() + Math.random(), type: "success", message: "Agent forged successfully", timestamp: new Date().toLocaleTimeString() }])
+        } else {
+          setLogs(prev => [...prev, { id: Date.now() + Math.random(), type: "warning", message: "Failed to forge agent", timestamp: new Date().toLocaleTimeString() }])
         }
       } catch (e) {
         setLogs(prev => [...prev, { id: Date.now() + Math.random(), type: "warning", message: "Failed to connect to backend", timestamp: new Date().toLocaleTimeString() }])
@@ -227,6 +261,31 @@ export default function SandboxPage() {
     setIsEditingConfig(false)
     setSessionId("session-" + Math.random().toString(36).substring(2, 9))
     handleClearChat(editConfigForm)
+  }
+
+  const handleSelectAgent = (agent: any) => {
+    const newConfig = {
+      name: agent.name,
+      tone: agent.tone || "Friendly",
+      expertise: agent.domain || "General",
+      description: agent.systemPrompt || agent.description,
+      guardrails: agent.guardrails || [],
+      tools: agent.tools || [],
+      id: agent._id || agent.id
+    }
+    
+    setConfig(newConfig)
+    setEditConfigForm(newConfig)
+    setSelectedAgentId(agent._id || agent.id)
+    setSessionId("session-" + Math.random().toString(36).substring(2, 9))
+    handleClearChat(newConfig)
+    
+    setLogs(prev => [...prev, { 
+      id: Date.now() + Math.random(), 
+      type: "info", 
+      message: `Switched to agent: ${agent.name}`, 
+      timestamp: new Date().toLocaleTimeString() 
+    }])
   }
 
   const updateAgentStats = async (updates: any) => {
@@ -484,10 +543,34 @@ export default function SandboxPage() {
           </a>
           <h1 className="text-2xl font-black">Sandbox Testing</h1>
         </div>
-        <Button onClick={() => setIsDeployModalOpen(true)}>
-          <Rocket className="w-4 h-4 mr-2" />
-          Deploy Agent
-        </Button>
+        
+        <div className="flex items-center gap-4">
+          {/* Agent Selector Dropdown */}
+          {savedAgents.length > 0 && (
+            <div className="relative">
+              <select
+                value={selectedAgentId || ''}
+                onChange={(e) => {
+                  const agent = savedAgents.find(a => (a._id || a.id) === e.target.value)
+                  if (agent) handleSelectAgent(agent)
+                }}
+                className="px-4 py-2 text-sm font-bold border-[3px] border-black rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-[#FF7A00]/30 transition-all cursor-pointer shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
+              >
+                <option value="">Select an agent...</option>
+                {savedAgents.map((agent) => (
+                  <option key={agent._id || agent.id} value={agent._id || agent.id}>
+                    {agent.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          
+          <Button onClick={() => setIsDeployModalOpen(true)}>
+            <Rocket className="w-4 h-4 mr-2" />
+            Deploy Agent
+          </Button>
+        </div>
       </header>
 
       {/* Main Content */}
