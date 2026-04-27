@@ -359,11 +359,12 @@ export default function SandboxPage() {
         })
       })
       const data = await res.json()
+      const responseText = data.message || data.error || "No response"
 
       const aiMessage: Message = {
         id: Date.now() + Math.random(),
         type: "ai",
-        content: data.message || "No response",
+        content: responseText,
         timestamp: new Date().toLocaleTimeString()
       }
       setMessages(prev => [...prev, aiMessage])
@@ -378,7 +379,7 @@ export default function SandboxPage() {
 
       setLogs(prev => [
         ...prev,
-        { id: Date.now() + Math.random(), type: data.blocked ? "warning" : "success", message: data.blocked ? "Guardrail blocked response" : "Response generated", timestamp: new Date().toLocaleTimeString() }
+        { id: Date.now() + Math.random(), type: !res.ok || data.blocked ? "warning" : "success", message: !res.ok ? responseText : data.blocked ? "Guardrail blocked response" : "Response generated", timestamp: new Date().toLocaleTimeString() }
       ])
     } catch (e) {
       setMessages(prev => [...prev, { id: Date.now() + Math.random(), type: "ai", content: "Error connecting to AI.", timestamp: new Date().toLocaleTimeString() }])
@@ -486,11 +487,12 @@ export default function SandboxPage() {
         body: JSON.stringify({ message: jailbreakPrompt, session_id: sessionId })
       })
       const data = await res.json()
+      const responseText = data.message || data.error || "No response"
 
       const aiMessage: Message = {
         id: Date.now() + Math.random(),
         type: "ai",
-        content: data.message || "No response",
+        content: responseText,
         timestamp: new Date().toLocaleTimeString()
       }
       setMessages(prev => [...prev, aiMessage])
