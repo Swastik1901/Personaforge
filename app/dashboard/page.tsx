@@ -169,8 +169,8 @@ export default function DashboardPage() {
     router.push('/deploy')
   }
 
-  // Show loading while checking auth
-  if (loading) {
+  // Show loading while checking auth or if no user yet (prevents flash)
+  if (loading || !user) {
     return (
       <div className="h-screen bg-[#FDF3B1] flex items-center justify-center">
         <div className="text-2xl font-black">Loading...</div>
@@ -178,16 +178,12 @@ export default function DashboardPage() {
     )
   }
 
-  // Don't render if no user
-  if (!user) {
-    return null
-  }
-
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" />, href: "/dashboard" },
     { id: "create", label: "Create Agent", icon: <Sparkles className="w-5 h-5" />, href: "/create-agent" },
     { id: "deployments", label: "Deployments", icon: <Rocket className="w-5 h-5" />, href: "/deploy" },
     { id: "sandbox", label: "Sandbox Testing", icon: <TestTube className="w-5 h-5" />, href: "/sandbox" },
+    { id: "api-keys", label: "API Keys", icon: <Zap className="w-5 h-5" />, href: "/api-keys" },
     { id: "settings", label: "Settings", icon: <Settings className="w-5 h-5" />, href: "/settings" },
   ]
 

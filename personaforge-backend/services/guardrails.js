@@ -1,9 +1,23 @@
-import { judgeMessage } from './claude.js';
+import { judgeMessage } from './ai.js';
 import { compileGuardrails } from './promptBuilder.js';
-import { ChatGroq } from "@langchain/groq";
+import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { RunnableSequence } from "@langchain/core/runnables";
+
+const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
+
+function createGroqModel(temperature = 0) {
+    return new ChatOpenAI({
+        model: GROQ_MODEL,
+        temperature,
+        apiKey: process.env.GROQ_API_KEY,
+        configuration: {
+            baseURL: GROQ_BASE_URL,
+        },
+    });
+}
 
 const BLOCKED_KEYWORDS = [
     "hack", "bomb", "weapon", "illegal", "jailbreak",
@@ -48,10 +62,7 @@ async function claudeJudgeInput(message, domain) {
  */
 async function claudeJudgeOutput(response, rules, domain) {
     try {
-        const model = new ChatGroq({
-            model: "llama-3.1-8b-instant",
-            temperature: 0,
-        });
+        const model = createGroqModel(0);
 
         const promptText = `You are a strict compliance validator. Evaluate if the response maintains persona integrity.
 

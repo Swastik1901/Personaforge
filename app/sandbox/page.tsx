@@ -127,11 +127,12 @@ export default function SandboxPage() {
   const [isTyping, setIsTyping] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const [agentId, setAgentId] = useState<string | null>(null)
-  const [apiKey, setApiKey] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState(() => "session-" + Math.random().toString(36).substring(2, 9))
   const [mounted, setMounted] = useState(false)
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [savedAgents, setSavedAgents] = useState<any[]>([])
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
 
   const [config, setConfig] = useState({
     name: "AI Assistant",
@@ -147,6 +148,26 @@ export default function SandboxPage() {
 
   useEffect(() => {
     setMounted(true)
+
+    // Fetch saved agents
+    const fetchAgents = async () => {
+      try {
+        const headers: Record<string, string> = {}
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+
+        const response = await fetch('/api/agents', { headers })
+        const data = await response.json()
+        if (response.ok) {
+          setSavedAgents(data.agents || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch agents:', error)
+      }
+    }
+
+    fetchAgents()
 
     // Check for pending config from create-agent
     let loadedConfig = config
@@ -167,6 +188,11 @@ export default function SandboxPage() {
         setConfig(newConfig)
         setEditConfigForm(newConfig)
         loadedConfig = newConfig
+        
+        // Set selected agent if ID exists
+        if (newConfig.id) {
+          setSelectedAgentId(newConfig.id)
+        }
         // keep pending config in localStorage so it persists on reload
       } catch (e) {
         console.error("Failed to parse pending config", e)
@@ -183,7 +209,7 @@ export default function SandboxPage() {
     ])
 
     setLogs([{ id: 1, type: "info", message: "Sandbox initializing...", timestamp: new Date().toLocaleTimeString() }])
-  }, [])
+  }, [token])
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -207,13 +233,20 @@ export default function SandboxPage() {
         const res = await fetch("http://localhost:8000/forge", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(config)
+          body: JSON.stringify({
+            description: config.description,
+            tone: config.tone,
+            guardrails: config.guardrails,
+            tools: config.tools,
+            responseLength: 'medium' // Default to medium
+          })
         })
         const data = await res.json()
         if (data.agentId) {
           setAgentId(data.agentId)
-          if (data.apiKey) setApiKey(data.apiKey)
           setLogs(prev => [...prev, { id: Date.now() + Math.random(), type: "success", message: "Agent forged successfully", timestamp: new Date().toLocaleTimeString() }])
+        } else {
+          setLogs(prev => [...prev, { id: Date.now() + Math.random(), type: "warning", message: "Failed to forge agent", timestamp: new Date().toLocaleTimeString() }])
         }
       } catch (e) {
         setLogs(prev => [...prev, { id: Date.now() + Math.random(), type: "warning", message: "Failed to connect to backend", timestamp: new Date().toLocaleTimeString() }])
@@ -227,6 +260,31 @@ export default function SandboxPage() {
     setIsEditingConfig(false)
     setSessionId("session-" + Math.random().toString(36).substring(2, 9))
     handleClearChat(editConfigForm)
+  }
+
+  const handleSelectAgent = (agent: any) => {
+    const newConfig = {
+      name: agent.name,
+      tone: agent.tone || "Friendly",
+      expertise: agent.domain || "General",
+      description: agent.systemPrompt || agent.description,
+      guardrails: agent.guardrails || [],
+      tools: agent.tools || [],
+      id: agent._id || agent.id
+    }
+    
+    setConfig(newConfig)
+    setEditConfigForm(newConfig)
+    setSelectedAgentId(agent._id || agent.id)
+    setSessionId("session-" + Math.random().toString(36).substring(2, 9))
+    handleClearChat(newConfig)
+    
+    setLogs(prev => [...prev, { 
+      id: Date.now() + Math.random(), 
+      type: "info", 
+      message: `Switched to agent: ${agent.name}`, 
+      timestamp: new Date().toLocaleTimeString() 
+    }])
   }
 
   const updateAgentStats = async (updates: any) => {
@@ -301,11 +359,12 @@ export default function SandboxPage() {
         })
       })
       const data = await res.json()
+      const responseText = data.message || data.error || "No response"
 
       const aiMessage: Message = {
         id: Date.now() + Math.random(),
         type: "ai",
-        content: data.message || "No response",
+        content: responseText,
         timestamp: new Date().toLocaleTimeString()
       }
       setMessages(prev => [...prev, aiMessage])
@@ -320,7 +379,7 @@ export default function SandboxPage() {
 
       setLogs(prev => [
         ...prev,
-        { id: Date.now() + Math.random(), type: data.blocked ? "warning" : "success", message: data.blocked ? "Guardrail blocked response" : "Response generated", timestamp: new Date().toLocaleTimeString() }
+        { id: Date.now() + Math.random(), type: !res.ok || data.blocked ? "warning" : "success", message: !res.ok ? responseText : data.blocked ? "Guardrail blocked response" : "Response generated", timestamp: new Date().toLocaleTimeString() }
       ])
     } catch (e) {
       setMessages(prev => [...prev, { id: Date.now() + Math.random(), type: "ai", content: "Error connecting to AI.", timestamp: new Date().toLocaleTimeString() }])
@@ -428,11 +487,12 @@ export default function SandboxPage() {
         body: JSON.stringify({ message: jailbreakPrompt, session_id: sessionId })
       })
       const data = await res.json()
+      const responseText = data.message || data.error || "No response"
 
       const aiMessage: Message = {
         id: Date.now() + Math.random(),
         type: "ai",
-        content: data.message || "No response",
+        content: responseText,
         timestamp: new Date().toLocaleTimeString()
       }
       setMessages(prev => [...prev, aiMessage])
@@ -484,10 +544,34 @@ export default function SandboxPage() {
           </a>
           <h1 className="text-2xl font-black">Sandbox Testing</h1>
         </div>
-        <Button onClick={() => setIsDeployModalOpen(true)}>
-          <Rocket className="w-4 h-4 mr-2" />
-          Deploy Agent
-        </Button>
+        
+        <div className="flex items-center gap-4">
+          {/* Agent Selector Dropdown */}
+          {savedAgents.length > 0 && (
+            <div className="relative">
+              <select
+                value={selectedAgentId || ''}
+                onChange={(e) => {
+                  const agent = savedAgents.find(a => (a._id || a.id) === e.target.value)
+                  if (agent) handleSelectAgent(agent)
+                }}
+                className="px-4 py-2 text-sm font-bold border-[3px] border-black rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-[#FF7A00]/30 transition-all cursor-pointer shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
+              >
+                <option value="">Select an agent...</option>
+                {savedAgents.map((agent) => (
+                  <option key={agent._id || agent.id} value={agent._id || agent.id}>
+                    {agent.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          
+          <Button onClick={() => setIsDeployModalOpen(true)}>
+            <Rocket className="w-4 h-4 mr-2" />
+            Get API
+          </Button>
+        </div>
       </header>
 
       {/* Main Content */}
@@ -957,7 +1041,7 @@ export default function SandboxPage() {
               className="bg-[#FFF4E2] border-[3px] border-black p-6 rounded-xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] w-full max-w-2xl max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-black">Deploy Your Agent</h2>
+                <h2 className="text-2xl font-black">Get API Keys</h2>
                 <button onClick={() => setIsDeployModalOpen(false)} className="hover:bg-black/5 p-1 rounded">
                   <X className="w-6 h-6" />
                 </button>
@@ -965,28 +1049,52 @@ export default function SandboxPage() {
 
               <div className="space-y-6">
                 <div>
-                  <h3 className="font-bold mb-2">Your API Keys</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white p-3 border-[2px] border-black rounded-lg hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-shadow">
-                      <div className="text-xs text-gray-500 font-bold mb-1">AGENT ID</div>
-                      <div className="font-mono text-sm break-all">{agentId || "Loading..."}</div>
-                    </div>
-                    <div className="bg-white p-3 border-[2px] border-black rounded-lg hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-shadow">
-                      <div className="text-xs text-gray-500 font-bold mb-1">API KEY</div>
-                      <div className="font-mono text-sm break-all">{apiKey || "Loading..."}</div>
-                    </div>
+                  <h3 className="font-bold mb-2">Agent ID</h3>
+                  <div className="bg-white p-4 border-[3px] border-black rounded-lg hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-shadow">
+                    <div className="text-xs text-gray-500 font-bold mb-1">AGENT ID</div>
+                    <div className="font-mono text-sm break-all">{agentId || "Loading..."}</div>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-2">
+                    Use this Agent ID to invoke your agent via API
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-bold mb-2">API Authentication</h3>
+                  <div className="bg-[#FFE8B1] p-4 border-[3px] border-black rounded-lg">
+                    <p className="text-sm font-bold mb-2">🔑 API Key Required</p>
+                    <p className="text-xs">
+                      Generate an API key from the <span className="font-bold">API Keys</span> page in the sidebar to authenticate your requests.
+                    </p>
                   </div>
                 </div>
 
                 <div>
                   <h3 className="font-bold mb-2">Integration Methods</h3>
 
-                  <div className="bg-black text-white p-4 rounded-lg border-[3px] border-black overflow-x-auto relative mt-2 group">
-                    <div className="text-xs text-gray-400 mb-2">cURL Request</div>
+                  <div className="bg-[#1e1e1e] text-white p-4 rounded-lg border-[3px] border-black overflow-x-auto relative mt-2 group">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="text-xs text-gray-400">cURL Request</div>
+                      <button
+                        onClick={() => {
+                          const code = `curl -X POST http://localhost:8000/v1/${agentId || 'YOUR_AGENT_ID'}/chat \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer <API-Token>" \\
+  -d '{
+    "message": "Hello there!",
+    "session_id": "user-session-123"
+  }'`;
+                          navigator.clipboard.writeText(code);
+                        }}
+                        className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded border border-gray-600 transition-colors"
+                      >
+                        Copy
+                      </button>
+                    </div>
                     <pre className="font-mono text-sm whitespace-pre-wrap">
                       {`curl -X POST http://localhost:8000/v1/${agentId || 'YOUR_AGENT_ID'}/chat \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer ${apiKey || 'YOUR_API_KEY'}" \\
+  -H "Authorization: Bearer <API-Token>" \\
   -d '{
     "message": "Hello there!",
     "session_id": "user-session-123"
@@ -994,14 +1102,37 @@ export default function SandboxPage() {
                     </pre>
                   </div>
 
-                  <div className="bg-white mt-4 p-4 rounded-lg border-[2px] border-black overflow-x-auto relative group">
-                    <div className="text-xs text-gray-500 mb-2 font-bold">JavaScript / TypeScript Fetch</div>
+                  <div className="bg-white mt-4 p-4 rounded-lg border-[3px] border-black overflow-x-auto relative group">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="text-xs text-gray-500 font-bold">JavaScript / TypeScript Fetch</div>
+                      <button
+                        onClick={() => {
+                          const code = `const response = await fetch("http://localhost:8000/v1/${agentId || 'YOUR_AGENT_ID'}/chat", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer <API-Token>"
+  },
+  body: JSON.stringify({
+    message: "Hello there!",
+    session_id: "user-session-123"
+  })
+});
+const data = await response.json();
+console.log(data.message);`;
+                          navigator.clipboard.writeText(code);
+                        }}
+                        className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded border-[2px] border-black transition-colors font-bold"
+                      >
+                        Copy
+                      </button>
+                    </div>
                     <pre className="font-mono text-sm whitespace-pre-wrap text-black">
                       {`const response = await fetch("http://localhost:8000/v1/${agentId || 'YOUR_AGENT_ID'}/chat", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    "Authorization": "Bearer ${apiKey || 'YOUR_API_KEY'}"
+    "Authorization": "Bearer <API-Token>"
   },
   body: JSON.stringify({
     message: "Hello there!",

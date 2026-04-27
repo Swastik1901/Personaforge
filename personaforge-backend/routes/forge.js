@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { forgePersona } from '../services/claude.js';
+import { forgePersona } from '../services/ai.js';
 
 export const agentsDb = new Map();
 const router = Router();
 
 router.post('/', async (req, res) => {
     try {
-        const { description, tone, guardrails, memory, tools } = req.body;
+        const { description, tone, guardrails, memory, tools, responseLength } = req.body;
 
         if (!description || typeof description !== 'string') {
             return res.status(400).json({ error: "description is required and must not be empty" });
@@ -16,19 +16,17 @@ router.post('/', async (req, res) => {
         const config = await forgePersona(description, tone, guardrails);
 
         const agentId = crypto.randomUUID();
-        const apiKeyChars = crypto.randomUUID().replace(/-/g, "").slice(0, 20);
-        const apiKey = `pf_${apiKeyChars}`;
 
         const agentRecord = {
             agentId,
-            apiKey,
             name: config.name,
             systemPrompt: config.systemPrompt,
             domain: config.domain,
             sampleReply: config.sampleReply,
             guardrails: guardrails || [],
             tools: Array.isArray(tools) ? tools : [],
-            memory: memory !== false // Default true, or store exactly what was sent
+            memory: memory !== false, // Default true, or store exactly what was sent
+            responseLength: responseLength || 'medium'
         };
 
         agentsDb.set(agentId, agentRecord);

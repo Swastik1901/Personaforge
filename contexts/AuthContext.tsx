@@ -29,9 +29,14 @@ function AuthProviderInner({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession()
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
-  const loading = status === "loading"
+  const [isInitialized, setIsInitialized] = useState(false)
+  const loading = status === "loading" || !isInitialized
 
   useEffect(() => {
+    // Check for stored auth data on mount (for custom auth)
+    const storedToken = localStorage.getItem('auth-token')
+    const storedUser = localStorage.getItem('auth-user')
+
     if (session?.user) {
       setUser({
         id: (session.user as any).id,
@@ -41,23 +46,16 @@ function AuthProviderInner({ children }: { children: React.ReactNode }) {
         isVerified: (session.user as any).isVerified,
         agentsCreated: (session.user as any).agentsCreated
       } as any)
-    } else {
-      setUser(null)
+      setIsInitialized(true)
+    } else if (storedToken && storedUser) {
+      setToken(storedToken)
+      setUser(JSON.parse(storedUser))
+      setIsInitialized(true)
+    } else if (status !== "loading") {
+      // Only mark as initialized when NextAuth has finished loading
+      setIsInitialized(true)
     }
-  }, [session])
-
-  useEffect(() => {
-    // Check for stored auth data on mount (for custom auth)
-    if (!session) {
-      const storedToken = localStorage.getItem('auth-token')
-      const storedUser = localStorage.getItem('auth-user')
-
-      if (storedToken && storedUser) {
-        setToken(storedToken)
-        setUser(JSON.parse(storedUser))
-      }
-    }
-  }, [session])
+  }, [session, status])
 
   const login = async (email: string, password: string) => {
     try {

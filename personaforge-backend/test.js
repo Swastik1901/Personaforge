@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-import { forgePersona, chatWithPersona, judgeMessage } from './services/claude.js';
+import { forgePersona, chatWithPersona, judgeMessage } from './services/ai.js';
 import { runGuardrails } from './services/guardrails.js';
 import { getHistory, saveHistory } from './services/memory.js';
 import { compileGuardrails, buildSystemPrompt } from './services/promptBuilder.js';
