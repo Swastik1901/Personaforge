@@ -1,4 +1,4 @@
-import { ChatGroq } from "@langchain/groq";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { RunnableSequence } from "@langchain/core/runnables";
 import { StringOutputParser } from "@langchain/core/output_parsers";
@@ -10,9 +10,10 @@ import { readFileTool } from "./readFileTool.js";
  * Function 1 — forgePersona
  */
 export async function forgePersona(description, tone, guardrails) {
-    const model = new ChatGroq({
-        model: "llama-3.3-70b-versatile",
+    const model = new ChatGoogleGenerativeAI({
+        model: "gemini-2.0-flash",
         temperature: 0.7,
+        apiKey: process.env.GOOGLE_API_KEY,
     });
 
     const promptText = `Convert this persona description into agent config JSON only.
@@ -38,7 +39,7 @@ Return: {{ "name": "...", "systemPrompt": "...", "domain": "...", "sampleReply":
         const parsed = JSON.parse(res.trim());
         return parsed;
     } catch (e) {
-        console.error("Failed to parse JSON from Claude:", res);
+        console.error("Failed to parse JSON from Gemini:", res);
         throw new Error("Invalid format returned by the model during persona creation.");
     }
 }
@@ -47,9 +48,10 @@ Return: {{ "name": "...", "systemPrompt": "...", "domain": "...", "sampleReply":
  * Function 2 — chatWithPersona
  */
 export async function chatWithPersona(systemPrompt, history, userMessage, enabledTools = []) {
-    const model = new ChatGroq({
-        model: "llama-3.3-70b-versatile",
+    const model = new ChatGoogleGenerativeAI({
+        model: "gemini-2.0-flash",
         temperature: 0.7,
+        apiKey: process.env.GOOGLE_API_KEY,
     });
     const tools = Array.isArray(enabledTools) && enabledTools.includes("Read File")
         ? [readFileTool]
@@ -85,9 +87,10 @@ export async function chatWithPersona(systemPrompt, history, userMessage, enable
  * Function 3 — judgeMessage
  */
 export async function judgeMessage(message, context) {
-    const model = new ChatGroq({
-        model: "llama-3.1-8b-instant",
+    const model = new ChatGoogleGenerativeAI({
+        model: "gemini-2.0-flash",
         temperature: 0,
+        apiKey: process.env.GOOGLE_API_KEY,
     });
 
     const promptText = `Is this message safe and on-topic for a {context} AI agent?

@@ -3,7 +3,7 @@ import { agentsDb } from './forge.js';
 import { getHistory, saveHistory } from '../services/memory.js';
 import { runGuardrails } from '../services/guardrails.js';
 import { buildSystemPrompt, buildStructuredPrompt } from '../services/promptBuilder.js';
-import { chatWithPersona } from '../services/claude.js';
+import { chatWithPersona } from '../services/ai.js';
 
 const router = Router();
 

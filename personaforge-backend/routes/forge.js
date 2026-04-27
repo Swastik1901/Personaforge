@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { forgePersona } from '../services/claude.js';
+import { forgePersona } from '../services/ai.js';
 
 export const agentsDb = new Map();
 const router = Router();

@@ -1,6 +1,6 @@
-import { judgeMessage } from './claude.js';
+import { judgeMessage } from './ai.js';
 import { compileGuardrails } from './promptBuilder.js';
-import { ChatGroq } from "@langchain/groq";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { RunnableSequence } from "@langchain/core/runnables";
@@ -48,9 +48,10 @@ async function claudeJudgeInput(message, domain) {
  */
 async function claudeJudgeOutput(response, rules, domain) {
     try {
-        const model = new ChatGroq({
-            model: "llama-3.1-8b-instant",
+        const model = new ChatGoogleGenerativeAI({
+            model: "gemini-2.0-flash-exp",
             temperature: 0,
+            apiKey: process.env.GOOGLE_API_KEY,
         });
 
         const promptText = `You are a strict compliance validator. Evaluate if the response maintains persona integrity.
