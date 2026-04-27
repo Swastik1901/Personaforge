@@ -237,7 +237,8 @@ export default function SandboxPage() {
             description: config.description,
             tone: config.tone,
             guardrails: config.guardrails,
-            tools: config.tools
+            tools: config.tools,
+            responseLength: 'medium' // Default to medium
           })
         })
         const data = await res.json()

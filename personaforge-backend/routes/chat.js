@@ -76,6 +76,7 @@ router.post('/:agentId/chat', authenticateApiKey, async (req, res) => {
 
         const enabledTools = Array.isArray(agent.tools) ? agent.tools : [];
         const canReadFiles = enabledTools.includes("Read File");
+        const responseLength = agent.responseLength || 'medium';
 
         if (isFileRelatedMessage(message) && !canReadFiles) {
             return res.json({
@@ -103,7 +104,7 @@ router.post('/:agentId/chat', authenticateApiKey, async (req, res) => {
         }
 
         // 3. Build system prompt and structure user input
-        const fullSystemPrompt = buildSystemPrompt(agent.systemPrompt, agent.domain, agent.guardrails, enabledTools);
+        const fullSystemPrompt = buildSystemPrompt(agent.systemPrompt, agent.domain, agent.guardrails, enabledTools, responseLength);
         
         let structuredMessage = buildStructuredPrompt(message, agent.domain);
 

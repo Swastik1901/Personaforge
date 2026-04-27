@@ -62,6 +62,7 @@ const FORGE_STEPS = [
 
 export default function CreateAgentPage() {
   const [description, setDescription] = useState("")
+  const [agentName, setAgentName] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
   const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null)
@@ -131,6 +132,10 @@ export default function CreateAgentPage() {
         if (data.memory) {
           setMemoryMode(data.memory)
         }
+        // Set agent name from input or use generated name
+        if (agentName) {
+          setAgentConfig(prev => prev ? { ...prev, agentName } : data)
+        }
       } else {
         setSaveError(data.error || 'Failed to generate agent configuration. Please try again.')
       }
@@ -161,7 +166,7 @@ export default function CreateAgentPage() {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          name: agentConfig.agentName || agentConfig.domain + " Agent",
+          name: agentName || agentConfig.agentName || agentConfig.domain + " Agent",
           description: description,
           systemPrompt: agentConfig.systemPrompt,
           tone: agentConfig.tone,
@@ -232,6 +237,18 @@ export default function CreateAgentPage() {
             <Card>
               <h2 className="text-2xl font-black mb-2">Describe Your AI Agent</h2>
               <p className="text-sm text-gray-600 mb-4">Use natural language to describe what kind of AI agent you want to create.</p>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-bold mb-2">Agent Name</label>
+                <input
+                  type="text"
+                  value={agentName}
+                  onChange={(e) => setAgentName(e.target.value)}
+                  placeholder="e.g., Startup Mentor AI"
+                  className="w-full px-4 py-3 text-base border-[3px] border-black rounded-lg bg-white focus:outline-none focus:ring-4 focus:ring-[#FF7A00]/30 transition-all font-medium"
+                />
+              </div>
+              
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -270,7 +287,7 @@ export default function CreateAgentPage() {
           </div>
 
           <div className="space-y-6">
-            <Card className="bg-[#FFE8B1] min-h-[600px]">
+            <Card className="bg-[#FFE8B1]">
               <h2 className="text-2xl font-black mb-6">Generated Agent Configuration</h2>
               <AnimatePresence mode="wait">
                 {!agentConfig && !isGenerating && (
@@ -348,12 +365,6 @@ export default function CreateAgentPage() {
                         ))}
                       </div>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-black mb-3">System Prompt</h3>
-                      <div className="bg-[#FFF4E2] border-[3px] border-black rounded-lg p-4 max-h-48 overflow-y-auto shadow-inner">
-                        <pre className="text-sm font-mono whitespace-pre-wrap">{agentConfig.systemPrompt}</pre>
-                      </div>
-                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -363,6 +374,7 @@ export default function CreateAgentPage() {
           <div className="space-y-6">
             <Card>
               <h2 className="text-xl font-black mb-4">Agent Settings</h2>
+              
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
                   <Database className="w-4 h-4" />
@@ -430,7 +442,6 @@ export default function CreateAgentPage() {
                     "Visit URL",
                     "Read File",
                     "Send Email",
-                    "Google Calendar",
                     "AWS MCP Docs"
                   ].map((tool) => (
                     <button
