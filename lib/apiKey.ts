@@ -5,13 +5,11 @@ import crypto from 'crypto'
  * Format: sk_<32 random characters>
  */
 export function generateApiKey(): string {
-  const randomBytes = crypto.randomBytes(24)
+  const randomBytes = crypto.randomBytes(32)
   const key = randomBytes.toString('base64')
-    .replace(/\+/g, '')
-    .replace(/\//g, '')
-    .replace(/=/g, '')
+    .replace(/[+/=]/g, '')
     .slice(0, 32)
-  
+
   return `sk_${key}`
 }
 
@@ -36,10 +34,18 @@ export function getKeyPrefix(apiKey: string): string {
 
 /**
  * Mask an API key for display
- * Shows: sk_abc...xyz
+ * Shows the beginning and ending only.
  */
-export function maskApiKey(prefix: string): string {
-  return `${prefix}${'*'.repeat(20)}${prefix.slice(-4)}`
+export function maskApiKey(apiKeyOrPrefix: string): string {
+  const prefixLength = 12
+  const fullKeySuffixLength = 6
+  const prefixOnlySuffixLength = 4
+
+  const isFullKey = apiKeyOrPrefix.length > prefixLength + fullKeySuffixLength
+  const suffixLength = isFullKey ? fullKeySuffixLength : prefixOnlySuffixLength
+  const starCount = isFullKey ? (apiKeyOrPrefix.length - prefixLength - suffixLength) : 17
+
+  return `${apiKeyOrPrefix.slice(0, prefixLength)}${'*'.repeat(starCount > 0 ? starCount : 17)}${apiKeyOrPrefix.slice(-suffixLength)}`
 }
 
 /**
@@ -49,7 +55,7 @@ export function secureCompare(a: string, b: string): boolean {
   if (a.length !== b.length) {
     return false
   }
-  
+
   return crypto.timingSafeEqual(
     Buffer.from(a, 'utf-8'),
     Buffer.from(b, 'utf-8')

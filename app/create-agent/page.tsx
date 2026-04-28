@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ArrowLeft, Sparkles, TestTube, Save, Rocket, Database, Shield, MessageSquare, Zap } from "lucide-react"
+import { ArrowLeft, Sparkles, TestTube, Save, Database, Shield, MessageSquare, Zap } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useRouter } from "next/navigation"
 
@@ -516,14 +516,6 @@ export default function CreateAgentPage() {
                 >
                   <Save className="w-4 h-4 mr-2" />
                   {isSaving ? "Saving..." : isSaved ? "Saved ✓" : "Save Agent"}
-                </Button>
-                <Button 
-                  className="w-full bg-[#FF7A00]" 
-                  disabled={!agentConfig}
-                  onClick={() => handleNavigateWithConfig('/deploy')}
-                >
-                  <Rocket className="w-4 h-4 mr-2" />
-                  Deploy Agent
                 </Button>
               </div>
             </Card>
