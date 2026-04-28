@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useState, useEffect } from "react"
+import { useCallback, useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ArrowLeft, Plus, Key, Copy, Trash2, CheckCircle, AlertTriangle, X } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
@@ -19,20 +19,20 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "default", size = "default", ...props }, ref) => {
     const baseStyles = "inline-flex items-center justify-center font-bold rounded-lg transition-all duration-200 border-[3px] border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none active:translate-x-[4px] active:translate-y-[4px] active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed"
-    
+
     const variants = {
       default: "bg-[#FF7A00] text-white hover:bg-[#E66D00]",
       outline: "bg-[#FFF4E2] text-black hover:bg-gray-50",
       ghost: "bg-transparent border-transparent shadow-none hover:bg-gray-100 hover:shadow-none",
       danger: "bg-[#FF9AA2] text-black hover:bg-[#FF8A92]"
     }
-    
+
     const sizes = {
       default: "px-6 py-3 text-base",
       sm: "px-4 py-2 text-sm",
       lg: "px-8 py-4 text-lg"
     }
-    
+
     return (
       <button
         ref={ref}
@@ -67,15 +67,24 @@ interface ApiKey {
   createdAt: string
 }
 
+interface ApiKeyResponse extends ApiKey {
+  apiKey?: string | null
+}
+
 export default function ApiKeysPage() {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
+  const [fullApiKeys, setFullApiKeys] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   const [newKeyName, setNewKeyName] = useState("")
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null)
+  const [revokingKeyId, setRevokingKeyId] = useState<string | null>(null)
+  const [revokeError, setRevokeError] = useState("")
+  const [copyError, setCopyError] = useState("")
+
   const { user, token, loading: authLoading } = useAuth()
   const router = useRouter()
 
@@ -85,13 +94,8 @@ export default function ApiKeysPage() {
     }
   }, [user, authLoading, router])
 
-  useEffect(() => {
-    if (user && token) {
-      fetchApiKeys()
-    }
-  }, [user, token])
-
-  const fetchApiKeys = async () => {
+  const fetchApiKeys = useCallback(async () => {
+    setIsLoading(true)
     try {
       const headers: Record<string, string> = {}
       if (token) {
@@ -100,20 +104,42 @@ export default function ApiKeysPage() {
 
       const response = await fetch('/api/api-keys', { headers })
       const data = await response.json()
-      
+
       if (response.ok) {
-        setApiKeys(data.apiKeys || [])
+        const keys: ApiKeyResponse[] = data.apiKeys || []
+        setFullApiKeys(
+          keys.reduce((currentKeys: Record<string, string>, key) => {
+            if (key.apiKey) {
+              currentKeys[key.id] = key.apiKey
+            }
+            return currentKeys
+          }, {})
+        )
+        setApiKeys(keys.map((key) => ({
+          id: key.id,
+          name: key.name,
+          keyPreview: key.keyPreview,
+          isActive: key.isActive,
+          lastUsedAt: key.lastUsedAt,
+          createdAt: key.createdAt
+        })))
       }
     } catch (error) {
       console.error('Failed to fetch API keys:', error)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [token])
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      fetchApiKeys()
+    }
+  }, [authLoading, user, fetchApiKeys])
 
   const handleCreateKey = async () => {
     if (!newKeyName.trim()) return
-    
+
     setIsCreating(true)
     try {
       const headers: Record<string, string> = {
@@ -130,7 +156,7 @@ export default function ApiKeysPage() {
       })
 
       const data = await response.json()
-      
+
       if (response.ok) {
         setNewlyCreatedKey(data.apiKey)
         setNewKeyName("")
@@ -148,6 +174,9 @@ export default function ApiKeysPage() {
       return
     }
 
+    setRevokeError("")
+    setRevokingKeyId(id)
+
     try {
       const headers: Record<string, string> = {}
       if (token) {
@@ -160,10 +189,21 @@ export default function ApiKeysPage() {
       })
 
       if (response.ok) {
-        fetchApiKeys()
+        setApiKeys((currentKeys) => currentKeys.filter((key) => key.id !== id))
+        setFullApiKeys((currentKeys) => {
+          const remainingKeys = { ...currentKeys }
+          delete remainingKeys[id]
+          return remainingKeys
+        })
+      } else {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || 'Failed to revoke API key')
       }
     } catch (error) {
       console.error('Failed to delete API key:', error)
+      setRevokeError(error instanceof Error ? error.message : 'Failed to revoke API key')
+    } finally {
+      setRevokingKeyId(null)
     }
   }
 
@@ -171,6 +211,24 @@ export default function ApiKeysPage() {
     navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const copyApiKey = async (event: React.MouseEvent<HTMLButtonElement>, id: string) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setCopyError("")
+
+    const apiKey = fullApiKeys[id]
+    if (!apiKey) return
+
+    try {
+      await navigator.clipboard.writeText(apiKey)
+      setCopiedKeyId(id)
+      setTimeout(() => setCopiedKeyId(null), 2000)
+    } catch (error) {
+      console.error('Failed to copy API key:', error)
+      setCopyError("Could not copy the API key. Please try again.")
+    }
   }
 
   if (authLoading || !user) {
@@ -224,8 +282,8 @@ export default function ApiKeysPage() {
           <Card>
             <div className="text-center py-12">
               <Key className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-              <h3 className="text-xl font-black mb-2">No API Keys Yet</h3>
-              <p className="text-gray-600 mb-6">Create your first API key to start using the API</p>
+              <h3 className="text-xl font-black mb-2">No API Keys Found</h3>
+              <p className="text-gray-600 mb-6">You have not generated any API keys yet. Create one when you are ready to connect external apps to your agents.</p>
               <Button onClick={() => setShowCreateModal(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Create API Key
@@ -234,48 +292,65 @@ export default function ApiKeysPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {apiKeys.map((key) => (
-              <motion.div
-                key={key.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-              >
-                <Card className="hover:translate-y-[-2px] transition-transform">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-black">{key.name}</h3>
-                        <span className={cn(
-                          "px-2 py-1 text-xs font-bold rounded border-[2px] border-black",
-                          key.isActive ? "bg-[#86EFAC]" : "bg-gray-300"
-                        )}>
-                          {key.isActive ? "Active" : "Inactive"}
-                        </span>
-                      </div>
-                      <div className="font-mono text-sm text-gray-600 mb-2">{key.keyPreview}</div>
-                      <div className="flex gap-4 text-xs text-gray-600">
-                        <div>
-                          <span className="font-bold">Created:</span> {new Date(key.createdAt).toLocaleDateString()}
+            {revokeError && (
+              <div className="p-3 bg-white border-[3px] border-red-500 rounded-lg font-bold text-red-600">
+                {revokeError}
+              </div>
+            )}
+            {copyError && (
+              <div className="p-3 bg-white border-[3px] border-red-500 rounded-lg font-bold text-red-600">
+                {copyError}
+              </div>
+            )}
+            {apiKeys.map((key) => {
+              const canCopyFullKey = Boolean(fullApiKeys[key.id])
+
+              return (
+                <motion.div
+                  key={key.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <Card className="hover:translate-y-[-2px] transition-transform">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="text-lg font-black">{key.name}</h3>
+                          <span className={cn(
+                            "px-2 py-1 text-xs font-bold rounded border-[2px] border-black",
+                            key.isActive ? "bg-[#86EFAC]" : "bg-gray-300"
+                          )}>
+                            {key.isActive ? "Active" : "Inactive"}
+                          </span>
                         </div>
-                        {key.lastUsedAt && (
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="font-mono text-sm text-gray-600 break-all">{key.keyPreview}</div>
+                        </div>
+                        <div className="flex gap-4 text-xs text-gray-600">
                           <div>
-                            <span className="font-bold">Last used:</span> {new Date(key.lastUsedAt).toLocaleDateString()}
+                            <span className="font-bold">Created:</span> {new Date(key.createdAt).toLocaleDateString()}
                           </div>
-                        )}
+                          {key.lastUsedAt && (
+                            <div>
+                              <span className="font-bold">Last used:</span> {new Date(key.lastUsedAt).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
                       </div>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => handleDeleteKey(key.id)}
+                        disabled={revokingKeyId === key.id}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        {revokingKeyId === key.id ? "Revoking..." : "Revoke"}
+                      </Button>
                     </div>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => handleDeleteKey(key.id)}
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Revoke
-                    </Button>
-                  </div>
-                </Card>
-              </motion.div>
-            ))}
+                  </Card>
+                </motion.div>
+              )
+            })}
           </div>
         )}
       </div>
@@ -350,8 +425,8 @@ export default function ApiKeysPage() {
                 <div className="flex items-start gap-2 mb-2">
                   <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold text-sm">Copy this key now!</p>
-                    <p className="text-xs">You won't be able to see it again for security reasons.</p>
+                    <p className="font-bold text-sm">Keep this key secure.</p>
+                    <p className="text-xs">Do not share it publicly or commit it to your codebase.</p>
                   </div>
                 </div>
               </div>
@@ -388,7 +463,7 @@ export default function ApiKeysPage() {
                   setShowCreateModal(false)
                 }}
               >
-                I've Saved My Key
+                I&apos;ve Saved My Key
               </Button>
             </motion.div>
           </motion.div>

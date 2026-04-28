@@ -11,6 +11,14 @@ const apiKeySchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  keySuffix: {
+    type: String,
+    default: null
+  },
+  apiKey: {
+    type: String,
+    default: null
+  },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

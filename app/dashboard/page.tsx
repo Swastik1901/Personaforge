@@ -7,13 +7,12 @@ import {
   LayoutDashboard,
   Sparkles,
   Bot,
-  Rocket,
   TestTube,
   Settings,
   Search,
   Bell,
   Plus,
-  Edit,
+  Trash2,
   Play,
   Menu,
   X,
@@ -101,12 +100,13 @@ export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeNav, setActiveNav] = useState("dashboard")
   const [searchQuery, setSearchQuery] = useState("")
+  const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState("")
 
   const [agents, setAgents] = useState<any[]>([])
   const [isLoadingAgents, setIsLoadingAgents] = useState(true)
 
   // Calculate global stats from real data
-  const totalDeployments = agents.filter(a => a.isDeployed).length
   const totalApiCalls = agents.reduce((sum, a) => sum + (a.totalApiCalls || 0), 0)
   const totalSandboxTests = agents.reduce((sum, a) => sum + (a.testCount || 0), 0)
   
@@ -155,18 +155,39 @@ export default function DashboardPage() {
     router.push('/sandbox')
   }
 
-  const handleDeployAgent = (agent: any) => {
-    const config = {
-      id: agent._id || agent.id,
-      name: agent.name,
-      tone: agent.tone || "Friendly",
-      expertise: agent.domain || "General",
-      description: agent.systemPrompt || agent.description,
-      guardrails: agent.guardrails || ["stayOnTopic", "noHarmfulContent"],
-      tools: agent.tools || []
+  const handleDeleteAgent = async (agent: any) => {
+    const agentId = agent._id || agent.id
+    if (!agentId) return
+
+    const confirmed = window.confirm(`Delete "${agent.name}"? This will permanently remove the agent and its data from the database.`)
+    if (!confirmed) return
+
+    setDeleteError("")
+    setDeletingAgentId(agentId)
+
+    try {
+      const headers: Record<string, string> = {}
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
+      const response = await fetch(`/api/agents/${agentId}`, {
+        method: 'DELETE',
+        headers
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || 'Failed to delete agent')
+      }
+
+      setAgents((currentAgents) => currentAgents.filter((currentAgent) => (currentAgent._id || currentAgent.id) !== agentId))
+    } catch (error) {
+      console.error('Failed to delete agent:', error)
+      setDeleteError(error instanceof Error ? error.message : 'Failed to delete agent')
+    } finally {
+      setDeletingAgentId(null)
     }
-    localStorage.setItem('personaforge_deploy_config', JSON.stringify(config))
-    router.push('/deploy')
   }
 
   // Show loading while checking auth or if no user yet (prevents flash)
@@ -181,7 +202,6 @@ export default function DashboardPage() {
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" />, href: "/dashboard" },
     { id: "create", label: "Create Agent", icon: <Sparkles className="w-5 h-5" />, href: "/create-agent" },
-    { id: "deployments", label: "Deployments", icon: <Rocket className="w-5 h-5" />, href: "/deploy" },
     { id: "sandbox", label: "Sandbox Testing", icon: <TestTube className="w-5 h-5" />, href: "/sandbox" },
     { id: "api-keys", label: "API Keys", icon: <Zap className="w-5 h-5" />, href: "/api-keys" },
     { id: "settings", label: "Settings", icon: <Settings className="w-5 h-5" />, href: "/settings" },
@@ -189,7 +209,6 @@ export default function DashboardPage() {
 
   const stats = [
     { label: "Active Agents", value: agents.length.toString(), icon: <Bot className="w-6 h-6" />, color: "#5CC8FF" },
-    { label: "Total Deployments", value: totalDeployments.toString(), icon: <Rocket className="w-6 h-6" />, color: "#86EFAC" },
     { label: "API Calls Today", value: totalApiCalls.toString(), icon: <Zap className="w-6 h-6" />, color: "#FF9AA2" },
     { label: "Sandbox Tests", value: totalSandboxTests.toString(), icon: <TestTube className="w-6 h-6" />, color: "#C4B5FD" }
   ]
@@ -317,7 +336,7 @@ export default function DashboardPage() {
           </motion.div>
 
           {/* Quick Actions */}
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 gap-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -348,24 +367,10 @@ export default function DashboardPage() {
               </Card>
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-            >
-              <Card 
-                className="hover:translate-y-[-4px] transition-transform bg-[#FF9AA2] cursor-pointer"
-                onClick={() => router.push('/deploy')}
-              >
-                <Rocket className="w-8 h-8 mb-3" />
-                <h3 className="text-xl font-black mb-2">Deploy Agent</h3>
-                <p className="text-sm">Launch to production</p>
-              </Card>
-            </motion.div>
           </div>
 
           {/* Stats Section */}
-          <div className="grid md:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-3 gap-6">
             {stats.map((stat, index) => (
               <motion.div
                 key={index}
@@ -394,6 +399,11 @@ export default function DashboardPage() {
                 Create Agent
               </Button>
             </div>
+            {deleteError && (
+              <div className="mb-4 p-3 bg-white border-[3px] border-red-500 rounded-lg font-bold text-red-600">
+                {deleteError}
+              </div>
+            )}
 
             <div className="grid md:grid-cols-2 gap-6">
               {isLoadingAgents ? (
@@ -443,17 +453,19 @@ export default function DashboardPage() {
                       </div>
 
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="flex-1" onClick={() => router.push('/create-agent')}>
-                          <Edit className="w-4 h-4 mr-2" />
-                          Edit
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-red-600 hover:bg-red-50"
+                          onClick={() => handleDeleteAgent(agent)}
+                          disabled={deletingAgentId === (agent._id || agent.id)}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          {deletingAgentId === (agent._id || agent.id) ? "Deleting..." : "Delete"}
                         </Button>
                         <Button variant="outline" size="sm" className="flex-1" onClick={() => handleTestAgent(agent)}>
                           <Play className="w-4 h-4 mr-2" />
                           Test
-                        </Button>
-                        <Button size="sm" className="flex-1" onClick={() => handleDeployAgent(agent)}>
-                          <Rocket className="w-4 h-4 mr-2" />
-                          Deploy
                         </Button>
                       </div>
                     </Card>

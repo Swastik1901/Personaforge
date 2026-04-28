@@ -6,7 +6,7 @@ import { verifyToken } from '@/lib/auth'
 // Delete/Revoke API key
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB()
@@ -34,7 +34,7 @@ export async function DELETE(
       userId = token.userId as string
     }
 
-    const { id } = params
+    const { id } = await params
 
     // Find and delete the API key (only if it belongs to the user)
     const apiKey = await ApiKey.findOneAndDelete({
@@ -65,7 +65,7 @@ export async function DELETE(
 // Update API key (toggle active status or rename)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB()
@@ -93,7 +93,7 @@ export async function PATCH(
       userId = token.userId as string
     }
 
-    const { id } = params
+    const { id } = await params
     const { isActive, name } = await request.json()
 
     const updateData: any = {}

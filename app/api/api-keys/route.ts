@@ -18,9 +18,9 @@ export async function GET(request: NextRequest) {
       userId = decoded.userId
     } else {
       const { getToken } = await import('next-auth/jwt')
-      const token = await getToken({ 
+      const token = await getToken({
         req: request,
-        secret: process.env.NEXTAUTH_SECRET 
+        secret: process.env.NEXTAUTH_SECRET
       })
 
       if (!token || !token.userId) {
@@ -37,18 +37,31 @@ export async function GET(request: NextRequest) {
       .select('-keyHash -__v')
 
     // Mask the keys for display
-    const maskedKeys = apiKeys.map(key => ({
-      id: key._id,
-      name: key.name,
-      keyPreview: maskApiKey(key.keyPrefix),
-      isActive: key.isActive,
-      lastUsedAt: key.lastUsedAt,
-      createdAt: key.createdAt
-    }))
+    const maskedKeys = apiKeys.map(key => {
+      // If we have keySuffix, we use it, otherwise fall back to maskApiKey
+      let keyPreview = key.keyPrefix;
+      if (key.apiKey) {
+        keyPreview = maskApiKey(key.apiKey);
+      } else if (key.keySuffix) {
+        keyPreview = `${key.keyPrefix}${'*'.repeat(17)}${key.keySuffix}`;
+      } else {
+        keyPreview = maskApiKey(key.keyPrefix);
+      }
+
+      return {
+        id: key._id,
+        name: key.name,
+        apiKey: key.apiKey || null,
+        keyPreview,
+        isActive: key.isActive,
+        lastUsedAt: key.lastUsedAt,
+        createdAt: key.createdAt
+      };
+    })
 
     return NextResponse.json({ apiKeys: maskedKeys }, { status: 200 })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Get API keys error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -71,9 +84,9 @@ export async function POST(request: NextRequest) {
       userId = decoded.userId
     } else {
       const { getToken } = await import('next-auth/jwt')
-      const token = await getToken({ 
+      const token = await getToken({
         req: request,
-        secret: process.env.NEXTAUTH_SECRET 
+        secret: process.env.NEXTAUTH_SECRET
       })
 
       if (!token || !token.userId) {
@@ -91,26 +104,28 @@ export async function POST(request: NextRequest) {
     const apiKey = generateApiKey()
     const keyHash = hashApiKey(apiKey)
     const keyPrefix = getKeyPrefix(apiKey)
+    const keySuffix = apiKey.slice(-6)
 
     // Store hashed version
     const newApiKey = await ApiKey.create({
       keyHash,
       keyPrefix,
+      keySuffix,
+      apiKey, // Full key available via this endpoint only right now, or whatever logic was implemented
       userId,
       name: name || 'API Key'
     })
 
-    // Return the full key ONLY ONCE
     return NextResponse.json({
       message: 'API key created successfully',
-      apiKey: apiKey, // Full key shown only once
+      apiKey,
       id: newApiKey._id,
       name: newApiKey.name,
       createdAt: newApiKey.createdAt,
-      warning: 'Copy this key now. You won\'t be able to see it again.'
+      warning: 'Keep this key secure and do not share it publicly.'
     }, { status: 201 })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Create API key error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
